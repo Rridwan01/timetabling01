@@ -1,35 +1,14 @@
 import { Request, Response } from "express";
 import { runGeneticAlgorithm } from "../services/geneticAlgorithm";
 import { evaluateFitness } from "../services/fitness";
-import { generateRandomTimetable } from "../services/population";
-import { Timeslot, Timetable } from "../models/timetable";
-
-// Mock data for timeslots
-const mockTimeslots: Timeslot[] = [
-  { id: 1, date: "2026-06-01", startTime: "09:00:00", endTime: "12:00:00" },
-  { id: 2, date: "2026-06-01", startTime: "13:00:00", endTime: "16:00:00" },
-  { id: 3, date: "2026-06-02", startTime: "09:00:00", endTime: "12:00:00" },
-  { id: 4, date: "2026-06-02", startTime: "13:00:00", endTime: "16:00:00" },
-];
-
-// Mock data for courses and rooms
-const mockCourses = [
-  { id: 1, numStudents: 30 },
-  { id: 2, numStudents: 50 },
-  { id: 3, numStudents: 20 },
-];
-
-const mockRooms = [
-  { id: 1, capacity: 40 },
-  { id: 2, capacity: 50 },
-  { id: 3, capacity: 30 },
-];
+import { query } from "../db";
+import { Timetable } from "../models/timetable";
 
 /**
  * POST /api/timetable/generate
  * Generates a timetable using the Genetic Algorithm.
  */
-export const generateTimetable = (req: Request, res: Response) => {
+export const generateTimetable = async (req: Request, res: Response) => {
   const { populationSize, generations, mutationRate } = req.body;
 
   // Validate input
@@ -37,20 +16,38 @@ export const generateTimetable = (req: Request, res: Response) => {
     return res.status(400).json({ error: "Missing required parameters." });
   }
 
-  // Run Genetic Algorithm
-  const bestTimetable: Timetable = runGeneticAlgorithm(
-    { populationSize, generations, mutationRate },
-    mockCourses,
-    mockRooms,
-    mockTimeslots
-  );
+  try {
+    // Fetch data from the database
+    const coursesResult = await query(
+      "SELECT id, num_students AS \"numStudents\" FROM courses"
+    );
+    const roomsResult = await query("SELECT id, capacity FROM rooms");
+    const timeslotsResult = await query(
+      "SELECT id, date, start_time AS \"startTime\", end_time AS \"endTime\" FROM timeslots"
+    );
 
-  // Evaluate fitness of the best timetable
-  const fitness = evaluateFitness(bestTimetable, mockCourses, mockRooms);
+    const courses = coursesResult.rows;
+    const rooms = roomsResult.rows;
+    const timeslots = timeslotsResult.rows;
 
-  // Return the best timetable and its fitness score
-  res.json({
-    timetable: bestTimetable,
-    fitness,
-  });
+    // Run Genetic Algorithm
+    const bestTimetable: Timetable = runGeneticAlgorithm(
+      { populationSize, generations, mutationRate },
+      courses,
+      rooms,
+      timeslots
+    );
+
+    // Evaluate fitness of the best timetable
+    const fitness = evaluateFitness(bestTimetable, courses, rooms);
+
+    // Return the best timetable and its fitness score
+    res.json({
+      timetable: bestTimetable,
+      fitness,
+    });
+  } catch (error) {
+    console.error("Error generating timetable:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
 };
