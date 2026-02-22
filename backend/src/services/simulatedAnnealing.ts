@@ -5,6 +5,7 @@ import { generateRandomTimetable } from "./population";
 interface Course {
   id: number;
   numStudents: number;
+  deptId: number; // Ensure this property exists
 }
 
 interface Room {
@@ -60,7 +61,7 @@ export function runSimulatedAnnealing(
 ): Timetable {
   // Generate initial solution
   let currentSolution = generateRandomTimetable(courses, rooms, timeslots);
-  let currentFitness = evaluateFitness(currentSolution, courses, rooms);
+  let currentFitness = evaluateFitness(currentSolution, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots);
 
   let bestSolution = currentSolution;
   let bestFitness = currentFitness;
@@ -70,7 +71,7 @@ export function runSimulatedAnnealing(
   for (let i = 0; i < config.iterations; i++) {
     // Generate a neighbor solution
     const neighborSolution = generateNeighbor(currentSolution, rooms, timeslots);
-    const neighborFitness = evaluateFitness(neighborSolution, courses, rooms);
+    const neighborFitness = evaluateFitness(neighborSolution, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots);
 
     // Calculate the change in fitness
     const delta = neighborFitness - currentFitness;

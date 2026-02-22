@@ -1,8 +1,9 @@
-import { Timetable, ExamAssignment } from "../models/timetable";
+import { Timetable, ExamAssignment, Timeslot } from "../models/timetable";
 
 interface Course {
   id: number;
   numStudents: number;
+  deptId: number; // Assuming deptId is part of the course object
 }
 
 interface Room {
@@ -15,12 +16,14 @@ interface Room {
  * @param timetable The timetable to evaluate.
  * @param courses List of courses.
  * @param rooms List of rooms.
+ * @param timeslots List of timeslots.
  * @returns Fitness score (higher is better).
  */
 export function evaluateFitness(
   timetable: Timetable,
   courses: Course[],
-  rooms: Room[]
+  rooms: Room[],
+  timeslots: Timeslot[] // Add timeslots as a parameter
 ): number {
   const courseMap = new Map<number, Course>(
     courses.map((course) => [course.id, course])
@@ -51,20 +54,53 @@ export function evaluateFitness(
     }
   }
 
-  // Student clash (simplified)
-  const timeslotCourseMap = new Map<number, Set<number>>(); // Key: timeslotId, Value: Set of courseIds
+  // Refined Student Clash logic
+  const timeslotDeptMap = new Map<number, Map<number, number>>(); // Key: timeslotId -> Map<deptId, count>
   for (const assignment of timetable.assignments) {
-    if (!timeslotCourseMap.has(assignment.timeslotId)) {
-      timeslotCourseMap.set(assignment.timeslotId, new Set());
+    const course = courseMap.get(assignment.courseId);
+    if (!course) continue;
+
+    const deptId = course.deptId; // Assuming deptId is part of the course object
+    if (!timeslotDeptMap.has(assignment.timeslotId)) {
+      timeslotDeptMap.set(assignment.timeslotId, new Map());
     }
-    timeslotCourseMap.get(assignment.timeslotId)?.add(assignment.courseId);
+
+    const deptMap = timeslotDeptMap.get(assignment.timeslotId)!;
+    deptMap.set(deptId, (deptMap.get(deptId) || 0) + 1);
   }
-  for (const [timeslotId, courseSet] of timeslotCourseMap) {
-    const courseArray = Array.from(courseSet);
-    for (let i = 0; i < courseArray.length; i++) {
-      for (let j = i + 1; j < courseArray.length; j++) {
-        // Simplified clash detection: assume all courses have overlapping students
-        penalty += 50; // Penalty for each pair of clashing courses
+
+  for (const [timeslotId, deptMap] of timeslotDeptMap) {
+    for (const [deptId, count] of deptMap) {
+      if (count > 1) {
+        penalty += (count - 1) * 100; // Penalty for student clashes within the same department
+      }
+    }
+  }
+
+  // Soft Constraint: Small Gaps
+  const dayDeptMap = new Map<string, Map<number, number>>(); // Key: date -> Map<deptId, count>
+  for (const assignment of timetable.assignments) {
+    const course = courseMap.get(assignment.courseId);
+    if (!course) continue;
+
+    const timeslot = timeslots.find((t: Timeslot) => t.id === assignment.timeslotId);
+    if (!timeslot) continue;
+
+    const date = timeslot.date;
+    const deptId = course.deptId;
+
+    if (!dayDeptMap.has(date)) {
+      dayDeptMap.set(date, new Map());
+    }
+
+    const deptMap = dayDeptMap.get(date)!;
+    deptMap.set(deptId, (deptMap.get(deptId) || 0) + 1);
+  }
+
+  for (const [date, deptMap] of dayDeptMap) {
+    for (const [deptId, count] of deptMap) {
+      if (count > 2) {
+        penalty += (count - 2) * 20; // Penalty for more than two exams per department on the same day
       }
     }
   }

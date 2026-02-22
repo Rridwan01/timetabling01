@@ -5,6 +5,7 @@ import { generateRandomTimetable } from "./population";
 interface Course {
   id: number;
   numStudents: number;
+  deptId: number; // Ensure this property exists
 }
 
 interface Room {
@@ -46,13 +47,13 @@ export function runGeneticAlgorithm(
   }
 
   let bestTimetable = population[0];
-  let bestFitness = evaluateFitness(bestTimetable, courses, rooms);
+  let bestFitness = evaluateFitness(bestTimetable, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots);
 
   // Run generations
   for (let generation = 0; generation < config.generations; generation++) {
     // Evaluate fitness for each timetable
     const fitnessScores = population.map((timetable) =>
-      evaluateFitness(timetable, courses, rooms)
+      evaluateFitness(timetable, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots)
     );
 
     // Find the best timetable in the current generation
@@ -69,8 +70,8 @@ export function runGeneticAlgorithm(
       const parent1 = population[Math.floor(Math.random() * population.length)];
       const parent2 = population[Math.floor(Math.random() * population.length)];
       parents.push(
-        evaluateFitness(parent1, courses, rooms) >
-        evaluateFitness(parent2, courses, rooms)
+        evaluateFitness(parent1, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots) >
+        evaluateFitness(parent2, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots)
           ? parent1
           : parent2
       );
