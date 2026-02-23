@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
-import { runGeneticAlgorithm } from "../services/geneticAlgorithm";
-import { evaluateFitness } from "../services/fitness";
-import { query } from "../db";
+import { runGeneticAlgorithm } from "../services/geneticAlgorithm.js";
+import { evaluateFitness } from "../services/fitness.js";
+import { query } from "../db/index.js";
 import { Timetable } from "../models/timetable";
-import { runSimulatedAnnealing } from "../services/simulatedAnnealing";
+import { runSimulatedAnnealing } from "../services/simulatedAnnealing.js";
 
 /**
  * POST /api/timetable/generate

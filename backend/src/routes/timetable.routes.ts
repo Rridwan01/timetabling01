@@ -1,5 +1,5 @@
 import express from 'express';
-import { generateTimetable } from '../controllers/runs.controller';
+import { generateTimetable } from '../controllers/runs.controller.js';
 
 const router = express.Router();
 

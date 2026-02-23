@@ -1,9 +1,9 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import { query } from './db';
-import timetableRouter from './routes/timetable.routes';
-import courseRouter from './routes/course.routes';
-import roomRouter from './routes/room.routes';
+import { query } from './db/index.js';
+import timetableRouter from './routes/timetable.routes.js';
+import courseRouter from './routes/course.routes.js';
+import roomRouter from './routes/room.routes.js';
 
 dotenv.config();
 
