@@ -8,8 +8,7 @@
     "dev": "npm run build && node dist/server.js",
     "build": "tsc",
     "lint": "eslint . --ext .ts",
-    "test": "jest",
-    "postinstall": "rm -rf node_modules"
+    "test": "jest"
   },
   "dependencies": {
     "dotenv": "^16.0.3",
