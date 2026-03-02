@@ -83,3 +83,17 @@ CREATE TABLE algorithm_metrics (
     avg_fitness FLOAT NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) DEFAULT 'admin',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert a default admin account (Password is 'admin123')
+-- Note: In a real production app, never hardcode passwords like this!
+INSERT INTO users (username, password_hash, role) 
+VALUES ('admin', '$2a$10$w.V/a4W15lB6A4bJ6/7Y/.hJ1q.N3.M.t.R/8eH.t.H.t.H.t.H.t.', 'admin')
+ON CONFLICT (username) DO NOTHING;
