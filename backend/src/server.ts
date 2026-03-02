@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import cors from 'cors'; // <-- 1. Import CORS
 import { query } from './db/index.js';
 import timetableRouter from './routes/timetable.routes';
 import courseRouter from './routes/course.routes';
@@ -10,6 +11,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors()); // <-- 2. Enable CORS so React can talk to Express
 app.use(express.json());
 
 // Use the timetable, course, and room routers
