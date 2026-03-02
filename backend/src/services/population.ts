@@ -1,21 +1,7 @@
-import { Timetable, ExamAssignment, Timeslot } from "../models/timetable";
-
-interface Course {
-  id: number;
-  numStudents: number;
-}
-
-interface Room {
-  id: number;
-  capacity: number;
-}
+import { Timetable, Course, Room, Timeslot, ExamAssignment } from "../models/timetable";
 
 /**
- * Generates a random valid timetable.
- * @param courses List of courses.
- * @param rooms List of rooms.
- * @param timeslots List of timeslots.
- * @returns A randomly generated timetable.
+ * Generates a completely random initial timetable (Chromosome).
  */
 export function generateRandomTimetable(
   courses: Course[],
@@ -23,22 +9,21 @@ export function generateRandomTimetable(
   timeslots: Timeslot[]
 ): Timetable {
   const assignments: ExamAssignment[] = [];
+  
+  // Filter out rooms that are under maintenance right from the start
+  const availableRooms = rooms.filter(r => r.availability === 'Available');
 
   for (const course of courses) {
-    // Randomly select a timeslot
+    // Pick a random timeslot
     const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
+    // Pick a random AVAILABLE room
+    const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
 
-    // Randomly select a room
-    const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
-
-    // Create an exam assignment
-    const assignment: ExamAssignment = {
+    assignments.push({
       courseId: course.id,
       roomId: randomRoom.id,
       timeslotId: randomTimeslot.id,
-    };
-
-    assignments.push(assignment);
+    });
   }
 
   return { assignments };

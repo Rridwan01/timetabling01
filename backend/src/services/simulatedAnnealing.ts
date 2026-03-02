@@ -1,40 +1,19 @@
-import { Timetable, ExamAssignment, Timeslot } from "../models/timetable";
+import { Timetable, ExamAssignment, Timeslot, Course, Room, TimetableConfig } from "../models/timetable";
 import { evaluateFitness } from "./fitness";
 import { generateRandomTimetable } from "./population";
 
-interface Course {
-  id: number;
-  numStudents: number;
-  deptId: number; // Ensure this property exists
-}
-
-interface Room {
-  id: number;
-  capacity: number;
-}
-
-interface SimulatedAnnealingConfig {
-  initialTemperature: number;
-  coolingRate: number;
-  iterations: number;
-}
-
 /**
  * Generates a neighbor timetable by randomly modifying one exam's room or timeslot.
- * @param timetable The current timetable.
- * @param rooms List of rooms.
- * @param timeslots List of timeslots.
- * @returns A new timetable with one random modification.
  */
 function generateNeighbor(
   timetable: Timetable,
-  rooms: Room[],
+  availableRooms: Room[],
   timeslots: Timeslot[]
 ): Timetable {
   const newAssignments = [...timetable.assignments];
   const randomIndex = Math.floor(Math.random() * newAssignments.length);
   const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
-  const randomRoom = rooms[Math.floor(Math.random() * rooms.length)];
+  const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
 
   newAssignments[randomIndex] = {
     ...newAssignments[randomIndex],
@@ -46,32 +25,37 @@ function generateNeighbor(
 }
 
 /**
- * Runs the Simulated Annealing algorithm to generate an optimal timetable.
- * @param config Configuration for the Simulated Annealing algorithm.
- * @param courses List of courses.
- * @param rooms List of rooms.
- * @param timeslots List of timeslots.
- * @returns The best timetable found.
+ * Runs the Simulated Annealing algorithm.
  */
 export function runSimulatedAnnealing(
-  config: SimulatedAnnealingConfig,
+  config: TimetableConfig,
   courses: Course[],
   rooms: Room[],
   timeslots: Timeslot[]
 ): Timetable {
+  
+  // Map UI inputs to SA parameters
+  const iterations = config.algorithm_tuning?.generations || 5000;
+  let initialTemperature = 1000;
+  let coolingRate = 0.95;
+  
+  if (config.algorithm_tuning?.mutationRate === "High") coolingRate = 0.99; // Cools slower, explores more
+  if (config.algorithm_tuning?.mutationRate === "Low") coolingRate = 0.85; // Cools faster
+
+  const availableRooms = rooms.filter(r => r.availability === 'Available');
+
   // Generate initial solution
-  let currentSolution = generateRandomTimetable(courses, rooms, timeslots);
-  let currentFitness = evaluateFitness(currentSolution, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots);
+  let currentSolution = generateRandomTimetable(courses, availableRooms, timeslots);
+  let currentFitness = evaluateFitness(currentSolution, courses, rooms, timeslots, config);
 
   let bestSolution = currentSolution;
   let bestFitness = currentFitness;
 
-  let temperature = config.initialTemperature;
+  let temperature = initialTemperature;
 
-  for (let i = 0; i < config.iterations; i++) {
-    // Generate a neighbor solution
-    const neighborSolution = generateNeighbor(currentSolution, rooms, timeslots);
-    const neighborFitness = evaluateFitness(neighborSolution, courses.map(course => ({ ...course, deptId: course.deptId })), rooms, timeslots);
+  for (let i = 0; i < iterations; i++) {
+    const neighborSolution = generateNeighbor(currentSolution, availableRooms, timeslots);
+    const neighborFitness = evaluateFitness(neighborSolution, courses, rooms, timeslots, config);
 
     // Calculate the change in fitness
     const delta = neighborFitness - currentFitness;
@@ -81,15 +65,13 @@ export function runSimulatedAnnealing(
       currentSolution = neighborSolution;
       currentFitness = neighborFitness;
 
-      // Update the best solution if the neighbor is better
       if (currentFitness > bestFitness) {
         bestSolution = currentSolution;
         bestFitness = currentFitness;
       }
     }
 
-    // Cool down the temperature
-    temperature *= config.coolingRate;
+    temperature *= coolingRate;
   }
 
   return bestSolution;

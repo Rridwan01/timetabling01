@@ -2,9 +2,26 @@
 
 export interface Timeslot {
   id: number;
+  label: string; // e.g., 'Morning', 'Afternoon'
   date: string; // ISO date string (e.g., '2026-06-01')
-  startTime: string; // ISO time string (e.g., '09:00:00')
-  endTime: string; // ISO time string (e.g., '12:00:00')
+  startTime: string; 
+  endTime: string; 
+}
+
+export interface Course {
+  id: number;
+  code: string;
+  title: string;
+  level: string; // e.g., '400L'
+  numStudents: number;
+  lecturer: string; // Chief Examiner
+}
+
+export interface Room {
+  id: number;
+  name: string;
+  capacity: number;
+  availability: string; // 'Available' or 'Maintenance'
 }
 
 export interface ExamAssignment {
@@ -15,4 +32,23 @@ export interface ExamAssignment {
 
 export interface Timetable {
   assignments: ExamAssignment[];
+}
+
+// Interfaces for the UI JSON Payload
+export interface HardConstraints {
+  studentClash: boolean;
+  roomCapacity: boolean;
+  chiefExaminerClash: boolean;
+}
+
+export interface SoftConstraints {
+  examSpread: number;      // Penalty weight 1-10
+  dailyLimit: number;      // Max exams per level per day
+  roomUtilization: number; // Penalty weight 1-10
+}
+
+export interface TimetableConfig {
+  hard_constraints: HardConstraints;
+  soft_constraints: SoftConstraints;
+  algorithm_tuning: any; // Used later for Generations/Mutation Rate
 }
