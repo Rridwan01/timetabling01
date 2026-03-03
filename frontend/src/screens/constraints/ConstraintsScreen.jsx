@@ -3,22 +3,21 @@ import { ConstraintsWrap } from "./ConstraintsScreen.styles";
 import { MdSave } from "react-icons/md";
 
 const ConstraintsScreen = () => {
-  // State for Hard Constraints (Toggles)
-  const [hardConstraints, setHardConstraints] = useState({
+  const savedConfig = JSON.parse(localStorage.getItem("timetable_constraints")) || {};
+
+  const [hardConstraints, setHardConstraints] = useState(savedConfig.hard_constraints || {
     studentClash: true,
     roomCapacity: true,
     chiefExaminerClash: true,
   });
 
-  // State for Soft Constraints (Numeric Penalties)
-  const [softConstraints, setSoftConstraints] = useState({
+  const [softConstraints, setSoftConstraints] = useState(savedConfig.soft_constraints || {
     examSpread: 5,
     dailyLimit: 2,
     roomUtilization: 3,
   });
 
-  // State for Algorithm Tuning (Dropdowns & Inputs)
-  const [algoTuning, setAlgoTuning] = useState({
+  const [algoTuning, setAlgoTuning] = useState(savedConfig.algorithm_tuning || {
     engine: "Genetic Algorithm",
     generations: 1000,
     mutationRate: "Medium",
@@ -37,15 +36,18 @@ const ConstraintsScreen = () => {
     setAlgoTuning({ ...algoTuning, [e.target.name]: e.target.value });
   };
 
-  const handleSave = () => {
-    // In the future, this will send a JSON payload to your Python backend
+const handleSave = () => {
     const payload = {
       hard_constraints: hardConstraints,
       soft_constraints: softConstraints,
       algorithm_tuning: algoTuning,
     };
-    console.log("Saving Configuration to Backend:", payload);
-    alert("Constraint configurations saved successfully!");
+    
+    // SAVE THE CONFIGURATION GLOBALLY
+    localStorage.setItem("timetable_constraints", JSON.stringify(payload));
+    
+    console.log("Saving Configuration locally:", payload);
+    alert("Constraint configurations saved successfully! You can now run the generation engine.");
   };
 
   return (

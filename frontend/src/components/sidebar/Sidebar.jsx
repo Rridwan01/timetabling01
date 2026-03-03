@@ -18,13 +18,27 @@ const Sidebar = () => {
   const isSidebarOpen = useSelector((state) => state.sidebar.isSidebarOpen);
 
   return (
-    <SidebarWrap
-      className={`${isSidebarOpen ? "sidebar-active" : ""}`}
-    >
+    <SidebarWrap className={`${isSidebarOpen ? "sidebar-active" : ""}`}>
       <div className="sidebar-content">
         <div className="sidebar-head">
           <span className="site-icon">
-            <FaSkyatlas />
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4318ff" /* Your primary purple/blue */
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ marginRight: "10px" }}
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+              <line x1="9" y1="14" x2="15" y2="14"></line>
+            </svg>
           </span>
           <h3 className="site-name">Timetabling</h3>
           <button
@@ -37,7 +51,6 @@ const Sidebar = () => {
         </div>
         <nav className="sidebar-nav scrollbar">
           <ul className="sidenav-list">
-            
             {/* Dashboard: Standard dashboard layout icon */}
             <li className="sidenav-item">
               <Link to="/" className="sidenav-link">
@@ -97,7 +110,6 @@ const Sidebar = () => {
                 <span className="link-text">Timetable View</span>
               </Link>
             </li>
-            
           </ul>
         </nav>
       </div>

@@ -1,19 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MdEdit, MdDelete, MdAdd, MdClose, MdCheck } from "react-icons/md";
 import { BlockTableWrap, BlockTitle } from "../../../../styles/global/default";
 import { RoomTableWrap } from "./RoomManagementTable.styles";
 
-// Initial mock data tailored for rooms/halls
-const INITIAL_DATA = [
-  { id: 1, name: "Hall A", capacity: 250, availability: "Available" },
-  { id: 2, name: "Hall B", capacity: 150, availability: "Available" },
-  { id: 3, name: "LT 1", capacity: 500, availability: "Maintenance" },
-];
-
 const RoomManagementTable = () => {
-  const [rooms, setRooms] = useState(INITIAL_DATA);
+  const [rooms, setRooms] = useState([]); // Start empty, fetch from real DB
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ id: null, name: "", capacity: "", availability: "Available" });
+  const [error, setError] = useState("");
+
+  const getToken = () => localStorage.getItem("token");
+
+  // 1. FETCH ROOMS ON LOAD
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  const fetchRooms = async () => {
+    try {
+      const response = await fetch("http://localhost:3000/api/rooms", {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRooms(data);
+      } else {
+        console.error("Failed to fetch rooms");
+      }
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+    }
+  };
 
   // Handle Form Inputs
   const handleInputChange = (e) => {
@@ -21,39 +38,74 @@ const RoomManagementTable = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  // Open form for a NEW room
   const handleAddClick = () => {
     setFormData({ id: null, name: "", capacity: "", availability: "Available" });
     setShowForm(true);
+    setError("");
   };
 
-  // Open form to EDIT an existing room
   const handleEditClick = (room) => {
     setFormData(room);
     setShowForm(true);
+    setError("");
   };
 
-  // Delete a room
-  const handleDeleteClick = (id) => {
+  // 2. DELETE ROOM
+  const handleDeleteClick = async (id) => {
     if (window.confirm("Are you sure you want to delete this room?")) {
-      setRooms(rooms.filter((room) => room.id !== id));
+      try {
+        const response = await fetch(`http://localhost:3000/api/rooms/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${getToken()}` },
+        });
+
+        if (response.ok) {
+          setRooms(rooms.filter((room) => room.id !== id));
+        } else {
+          alert("Failed to delete room");
+        }
+      } catch (error) {
+        console.error("Error deleting room:", error);
+      }
     }
   };
 
-  // Save (Add or Update)
-  const handleFormSubmit = (e) => {
+  // 3. SAVE (ADD OR UPDATE) ROOM
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     
-    if (formData.id) {
-      // Update existing room
-      setRooms(rooms.map((room) => (room.id === formData.id ? formData : room)));
-    } else {
-      // Add new room
-      const newRoom = { ...formData, id: Date.now() };
-      setRooms([...rooms, newRoom]);
+    const isUpdate = formData.id !== null;
+    const url = isUpdate 
+        ? `http://localhost:3000/api/rooms/${formData.id}` 
+        : "http://localhost:3000/api/rooms";
+    const method = isUpdate ? "PUT" : "POST";
+
+    const payload = {
+        ...formData,
+        capacity: parseInt(formData.capacity, 10)
+    };
+    
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${getToken()}` 
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+            fetchRooms(); // Refresh the list from the database
+            setShowForm(false);
+        } else {
+            const data = await response.json();
+            setError(data.error || "Failed to save room");
+        }
+    } catch (err) {
+        setError("Network error. Is the backend running?");
     }
-    
-    setShowForm(false); // Close form after saving
   };
 
   return (
@@ -69,6 +121,7 @@ const RoomManagementTable = () => {
       {/* --- ADD / EDIT FORM --- */}
       {showForm && (
         <form className="room-form" onSubmit={handleFormSubmit}>
+          {error && <div style={{color: 'red', marginBottom: '10px'}}>{error}</div>}
           <div className="form-grid">
             <div className="form-group">
               <label>Room Name</label>
@@ -113,7 +166,7 @@ const RoomManagementTable = () => {
               {rooms.length === 0 ? (
                 <tr>
                   <td colSpan="4" style={{ textAlign: "center", padding: "20px", color: "#A3AED0" }}>
-                    No rooms available. Add one above.
+                    No rooms available in Database. Add one above.
                   </td>
                 </tr>
               ) : (

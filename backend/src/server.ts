@@ -7,6 +7,7 @@ import courseRouter from './routes/course.routes';
 import roomRouter from './routes/room.routes';
 import authRoutes from './routes/auth.routes';
 import { authenticateJWT } from './middleware/auth.middleware';
+import timeslotRouter from './routes/timeslot.routes';
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/courses', authenticateJWT, courseRouter);
 app.use('/api/rooms', authenticateJWT, roomRouter);
 app.use('/api/timetable', authenticateJWT, timetableRouter);
+app.use('/api/timeslots', authenticateJWT, timeslotRouter);
 
 app.get('/', (req, res) => {
   res.send('Examination Timetabling System Backend');

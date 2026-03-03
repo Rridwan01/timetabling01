@@ -63,8 +63,7 @@ const GenerateTimetableScreen = () => {
     return { type: "info", time, text };
   };
 
-  const handleStart = async () => {
-    // 1. Initialize UI Simulation (FIXED SYNTAX HERE)
+const handleStart = async () => {
     setLogs([{ type: "info", time: new Date().toLocaleTimeString(), text: `Initializing ${algorithm === 'GA' ? 'Genetic Algorithm' : 'Simulated Annealing'} Engine...` }]);
     setProgress(0);
     setMetrics({ iteration: 0, fitness: 12.5, clashes: 156 });
@@ -72,65 +71,70 @@ const GenerateTimetableScreen = () => {
     setIsRunning(true);
 
     try {
-      // 2. Build the configuration payload to send to the backend
-      const payload = {
-        hard_constraints: {
-          studentClash: true,
-          roomCapacity: true,
-          chiefExaminerClash: true
-        },
-        soft_constraints: {
-          examSpread: 5,
-          dailyLimit: 2,
-          roomUtilization: 3
-        },
-        algorithm_tuning: {
-          engine: algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing",
-          generations: 1000,
-          mutationRate: "Medium"
-        }
-      };
+      // 1. GET THE DYNAMIC CONSTRAINTS FROM LOCAL STORAGE
+      const savedConfigString = localStorage.getItem("timetable_constraints");
+      
+      let payload;
+      if (savedConfigString) {
+        payload = JSON.parse(savedConfigString);
+        // Override the engine with whatever they selected on THIS screen
+        payload.algorithm_tuning.engine = algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing";
+      } else {
+        // Fallback default payload if they never visited the Constraints screen
+        payload = {
+          hard_constraints: { studentClash: true, roomCapacity: true, chiefExaminerClash: true },
+          soft_constraints: { examSpread: 5, dailyLimit: 2, roomUtilization: 3 },
+          algorithm_tuning: { engine: algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing", generations: 1000, mutationRate: "Medium" }
+        };
+      }
 
-      // 3. Make the actual API call to your Node.js backend
+      // Add VIP Auth Token (Required for your protected backend routes!)
+      const token = localStorage.getItem("token");
+
+      // 2. MAKE THE ACTUAL API CALL
       const response = await fetch("http://localhost:3000/api/timetable/generate", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}` // <-- ADDED THE TOKEN HERE
         },
         body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
-        throw new Error("Failed to generate timetable on the server.");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate timetable.");
       }
 
       const data = await response.json();
 
-      // 4. Update UI with REAL data from the backend once it finishes
+      // 3. UPDATE UI WITH REAL BACKEND METRICS
       setProgress(100);
       setIsRunning(false);
       setIsCompleted(true);
       
       setMetrics({
-        iteration: data.iterationsRun || 1000,
+        iteration: data.iterationsRun || payload.algorithm_tuning.generations,
         fitness: data.fitness, 
         clashes: data.fitness === 100 ? 0 : 1 
       });
 
-      // FIXED SYNTAX HERE
       setLogs((prev) => [
         ...prev, 
         { type: "info", time: new Date().toLocaleTimeString(), text: `Execution time: ${data.timeTakenMs}ms` },
-        { type: "success", time: new Date().toLocaleTimeString(), text: "Optimal Timetable Generated Successfully!" }
+        { type: "success", time: new Date().toLocaleTimeString(), text: data.message || "Optimal Timetable Generated Successfully!" }
       ]);
 
       console.log("Real Timetable Data from Server:", data.timetable);
+      
+      // Store the generated timetable globally so the View screen can display it!
+      localStorage.setItem("generated_timetable", JSON.stringify(data.timetable));
 
     } catch (error) {
       setIsRunning(false);
       setLogs((prev) => [
         ...prev, 
-        { type: "error", time: new Date().toLocaleTimeString(), text: "Server Error: Could not reach the algorithm engine." }
+        { type: "error", time: new Date().toLocaleTimeString(), text: `Server Error: ${error.message}` }
       ]);
       console.error(error);
     }
