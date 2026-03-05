@@ -59,14 +59,14 @@ export const SummaryWrap = styled.div`
       flex-direction: column;
       row-gap: 2px;
     }
-    
+
     .summary-block-val {
       font-size: 24px;
       font-weight: 700;
       line-height: 1.4;
       color: ${theme.colors.white};
     }
-    
+
     .summary-block-text {
       font-size: 12px;
       font-weight: 400;
@@ -82,7 +82,11 @@ export const SummaryWrap = styled.div`
   /* Styling for the Generate Timetable Banner */
   .generate-banner {
     margin-top: 20px;
-    background: linear-gradient(135deg, ${theme.colors.spaceCadet1} 0%, rgba(117, 81, 255, 0.15) 100%);
+    background: linear-gradient(
+      135deg,
+      ${theme.colors.spaceCadet1} 0%,
+      rgba(117, 81, 255, 0.15) 100%
+    );
     border: 1px solid rgba(117, 81, 255, 0.2);
     border-radius: 20px;
     padding: 32px;
@@ -128,6 +132,30 @@ export const SummaryWrap = styled.div`
       &:hover {
         transform: translateY(-2px);
         box-shadow: 0 6px 20px rgba(117, 81, 255, 0.6);
+      }
+    }
+
+    /* --- NEW PREMIUM RESET BUTTON --- */
+    .reset-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background-color: transparent;
+      color: #ee5d50;
+      border: 1px solid rgba(238, 93, 80, 0.5);
+      padding: 16px 24px; /* Matches generate-btn perfectly */
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+
+      &:hover {
+        background-color: rgba(238, 93, 80, 0.1); /* Soft, elegant red tint */
+        border-color: #ee5d50;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(238, 93, 80, 0.2);
       }
     }
   }

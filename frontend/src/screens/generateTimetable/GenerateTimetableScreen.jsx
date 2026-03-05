@@ -1,17 +1,23 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { GenerateWrap } from "./GenerateTimetableScreen.styles";
 import { MdSettings, MdPlayArrow, MdStop, MdCheckCircle } from "react-icons/md";
 
 const GenerateTimetableScreen = () => {
+  const navigate = useNavigate();
   const [algorithm, setAlgorithm] = useState("GA");
-  
+
   // Simulation States
   const [isRunning, setIsRunning] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [metrics, setMetrics] = useState({ iteration: 0, fitness: 0, clashes: 124 });
+  const [metrics, setMetrics] = useState({
+    iteration: 0,
+    fitness: 0,
+    clashes: 124,
+  });
   const [logs, setLogs] = useState([
-    { type: "info", text: "System Ready. Awaiting engine start..." }
+    { type: "info", text: "System Ready. Awaiting engine start..." },
   ]);
 
   // Terminal Auto-Scroll Ref
@@ -36,35 +42,53 @@ const GenerateTimetableScreen = () => {
 
         setMetrics((prev) => ({
           iteration: prev.iteration + Math.floor(Math.random() * 50),
-          fitness: Math.min(100, prev.fitness + (Math.random() * 2)),
+          fitness: Math.min(100, prev.fitness + Math.random() * 2),
           clashes: Math.max(0, prev.clashes - Math.floor(Math.random() * 3)),
         }));
 
         const newLog = generateMockLog(algorithm);
         setLogs((prev) => [...prev, newLog]);
-
       }, 600); // Speed of the simulation
     } else if (progress >= 100 && isRunning) {
       setIsRunning(false);
       setIsCompleted(true);
       setMetrics((prev) => ({ ...prev, fitness: 100, clashes: 0 }));
-      setLogs((prev) => [...prev, { type: "success", text: "Optimal Timetable Generated Successfully!" }]);
+      setLogs((prev) => [
+        ...prev,
+        { type: "success", text: "Optimal Timetable Generated Successfully!" },
+      ]);
     }
     return () => clearInterval(interval);
   }, [isRunning, progress, algorithm]);
 
   const generateMockLog = (algo) => {
     const time = new Date().toLocaleTimeString();
-    const gaPhrases = ["Applying Crossover to Population...", "Evaluating Fitness Function...", "Mutation Triggered on Chromosome 42...", "Selecting Elites..."];
-    const saPhrases = ["Cooling Temperature...", "Accepting Sub-optimal State to escape local minimum...", "Perturbing Schedule...", "Calculating Energy Difference..."];
-    
+    const gaPhrases = [
+      "Applying Crossover to Population...",
+      "Evaluating Fitness Function...",
+      "Mutation Triggered on Chromosome 42...",
+      "Selecting Elites...",
+    ];
+    const saPhrases = [
+      "Cooling Temperature...",
+      "Accepting Sub-optimal State to escape local minimum...",
+      "Perturbing Schedule...",
+      "Calculating Energy Difference...",
+    ];
+
     const phrases = algo === "GA" ? gaPhrases : saPhrases;
     const text = phrases[Math.floor(Math.random() * phrases.length)];
     return { type: "info", time, text };
   };
 
-const handleStart = async () => {
-    setLogs([{ type: "info", time: new Date().toLocaleTimeString(), text: `Initializing ${algorithm === 'GA' ? 'Genetic Algorithm' : 'Simulated Annealing'} Engine...` }]);
+  const handleStart = async () => {
+    setLogs([
+      {
+        type: "info",
+        time: new Date().toLocaleTimeString(),
+        text: `Initializing ${algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing"} Engine...`,
+      },
+    ]);
     setProgress(0);
     setMetrics({ iteration: 0, fitness: 12.5, clashes: 156 });
     setIsCompleted(false);
@@ -73,18 +97,32 @@ const handleStart = async () => {
     try {
       // 1. GET THE DYNAMIC CONSTRAINTS FROM LOCAL STORAGE
       const savedConfigString = localStorage.getItem("timetable_constraints");
-      
+
       let payload;
       if (savedConfigString) {
         payload = JSON.parse(savedConfigString);
         // Override the engine with whatever they selected on THIS screen
-        payload.algorithm_tuning.engine = algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing";
+        payload.algorithm_tuning.engine =
+          algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing";
       } else {
         // Fallback default payload if they never visited the Constraints screen
         payload = {
-          hard_constraints: { studentClash: true, roomCapacity: true, chiefExaminerClash: true },
-          soft_constraints: { examSpread: 5, dailyLimit: 2, roomUtilization: 3 },
-          algorithm_tuning: { engine: algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing", generations: 1000, mutationRate: "Medium" }
+          hard_constraints: {
+            studentClash: true,
+            roomCapacity: true,
+            chiefExaminerClash: true,
+          },
+          soft_constraints: {
+            examSpread: 5,
+            dailyLimit: 2,
+            roomUtilization: 3,
+          },
+          algorithm_tuning: {
+            engine:
+              algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing",
+            generations: 1000,
+            mutationRate: "Medium",
+          },
         };
       }
 
@@ -92,14 +130,17 @@ const handleStart = async () => {
       const token = localStorage.getItem("token");
 
       // 2. MAKE THE ACTUAL API CALL
-      const response = await fetch("http://localhost:3000/api/timetable/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}` // <-- ADDED THE TOKEN HERE
+      const response = await fetch(
+        "http://localhost:3000/api/timetable/generate",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`, // <-- ADDED THE TOKEN HERE
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload)
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -112,29 +153,43 @@ const handleStart = async () => {
       setProgress(100);
       setIsRunning(false);
       setIsCompleted(true);
-      
+
       setMetrics({
         iteration: data.iterationsRun || payload.algorithm_tuning.generations,
-        fitness: data.fitness, 
-        clashes: data.fitness === 100 ? 0 : 1 
+        fitness: data.fitness,
+        clashes: data.fitness === 100 ? 0 : 1,
       });
 
       setLogs((prev) => [
-        ...prev, 
-        { type: "info", time: new Date().toLocaleTimeString(), text: `Execution time: ${data.timeTakenMs}ms` },
-        { type: "success", time: new Date().toLocaleTimeString(), text: data.message || "Optimal Timetable Generated Successfully!" }
+        ...prev,
+        {
+          type: "info",
+          time: new Date().toLocaleTimeString(),
+          text: `Execution time: ${data.timeTakenMs}ms`,
+        },
+        {
+          type: "success",
+          time: new Date().toLocaleTimeString(),
+          text: data.message || "Optimal Timetable Generated Successfully!",
+        },
       ]);
 
       console.log("Real Timetable Data from Server:", data.timetable);
-      
-      // Store the generated timetable globally so the View screen can display it!
-      localStorage.setItem("generated_timetable", JSON.stringify(data.timetable));
 
+      // Store the generated timetable globally so the View screen can display it!
+      localStorage.setItem(
+        "generated_timetable",
+        JSON.stringify(data.timetable),
+      );
     } catch (error) {
       setIsRunning(false);
       setLogs((prev) => [
-        ...prev, 
-        { type: "error", time: new Date().toLocaleTimeString(), text: `Server Error: ${error.message}` }
+        ...prev,
+        {
+          type: "error",
+          time: new Date().toLocaleTimeString(),
+          text: `Server Error: ${error.message}`,
+        },
       ]);
       console.error(error);
     }
@@ -142,7 +197,14 @@ const handleStart = async () => {
 
   const handleStop = () => {
     setIsRunning(false);
-    setLogs((prev) => [...prev, { type: "warning", time: new Date().toLocaleTimeString(), text: "Process Terminated by User." }]);
+    setLogs((prev) => [
+      ...prev,
+      {
+        type: "warning",
+        time: new Date().toLocaleTimeString(),
+        text: "Process Terminated by User.",
+      },
+    ]);
   };
 
   return (
@@ -153,14 +215,19 @@ const handleStart = async () => {
       </div>
 
       <div className="engine-grid">
-        
         {/* LEFT COLUMN: Configuration */}
         <div className="config-panel">
-          <h3 className="panel-title"><MdSettings /> Algorithm Setup</h3>
-          
+          <h3 className="panel-title">
+            <MdSettings /> Algorithm Setup
+          </h3>
+
           <div className="form-group">
             <label>Select Algorithm</label>
-            <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)} disabled={isRunning}>
+            <select
+              value={algorithm}
+              onChange={(e) => setAlgorithm(e.target.value)}
+              disabled={isRunning}
+            >
               <option value="GA">Genetic Algorithm (GA)</option>
               <option value="SA">Simulated Annealing (SA)</option>
               <option value="Compare">Compare Both (Benchmark)</option>
@@ -188,7 +255,12 @@ const handleStart = async () => {
               </div>
               <div className="form-group">
                 <label>Cooling Rate</label>
-                <input type="number" defaultValue="0.95" step="0.01" disabled={isRunning} />
+                <input
+                  type="number"
+                  defaultValue="0.95"
+                  step="0.01"
+                  disabled={isRunning}
+                />
               </div>
             </>
           )}
@@ -206,7 +278,10 @@ const handleStart = async () => {
           )}
 
           {isCompleted && (
-            <button className="run-btn completed" onClick={() => setIsCompleted(false)}>
+            <button
+              className="run-btn completed"
+              onClick={() => navigate("/timetable-view")}
+            >
               <MdCheckCircle size={24} /> View Timetable
             </button>
           )}
@@ -214,7 +289,6 @@ const handleStart = async () => {
 
         {/* RIGHT COLUMN: Execution & Output */}
         <div className="execution-panel">
-          
           <div className="metrics-grid">
             <div className="metric-card">
               <p className="metric-lbl">Iterations / Gen</p>
@@ -222,11 +296,16 @@ const handleStart = async () => {
             </div>
             <div className="metric-card">
               <p className="metric-lbl">Fitness Score</p>
-              <p className="metric-val highlight">{Number(metrics.fitness).toFixed(1)}%</p>
+              <p className="metric-val highlight">
+                {Number(metrics.fitness).toFixed(1)}%
+              </p>
             </div>
             <div className="metric-card">
               <p className="metric-lbl">Hard Clashes</p>
-              <p className="metric-val" style={{ color: metrics.clashes > 0 ? '#ee5d50' : '#01b574' }}>
+              <p
+                className="metric-val"
+                style={{ color: metrics.clashes > 0 ? "#ee5d50" : "#01b574" }}
+              >
                 {metrics.clashes}
               </p>
             </div>
@@ -238,7 +317,10 @@ const handleStart = async () => {
               <span>{Math.floor(progress)}%</span>
             </div>
             <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${progress}%` }}></div>
+              <div
+                className="progress-fill"
+                style={{ width: `${progress}%` }}
+              ></div>
             </div>
           </div>
 
@@ -251,7 +333,6 @@ const handleStart = async () => {
               </div>
             ))}
           </div>
-
         </div>
       </div>
     </GenerateWrap>

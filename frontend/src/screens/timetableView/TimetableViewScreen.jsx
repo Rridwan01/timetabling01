@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { TimetableViewWrap } from "./TimetableViewScreen.styles";
-import { MdDownload, MdPictureAsPdf, MdGridOn } from "react-icons/md";
+import { MdPictureAsPdf, MdGridOn } from "react-icons/md";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 const TimetableViewScreen = () => {
   const [schedule, setSchedule] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  const [timeslots, setTimeslots] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -18,159 +15,158 @@ const TimetableViewScreen = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // 1. Get the Raw Generated Timetable from Phase 2
       const rawSchedule = JSON.parse(localStorage.getItem("generated_timetable"));
       
       if (!rawSchedule || !rawSchedule.assignments) {
         setIsLoading(false);
-        return; // No timetable has been generated yet
+        return; 
       }
 
-      // 2. Fetch the Context (Names of Courses, Rooms, and Timeslots)
       const token = localStorage.getItem("token");
       const [coursesRes, roomsRes, timeslotsRes] = await Promise.all([
         fetch("http://localhost:3000/api/courses", { headers: { Authorization: `Bearer ${token}` } }),
         fetch("http://localhost:3000/api/rooms", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("http://localhost:3000/api/timeslots", { headers: { Authorization: `Bearer ${token}` } }) // We need to add this route next!
+        fetch("http://localhost:3000/api/timeslots", { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
-      if (coursesRes.ok && roomsRes.ok && timeslotsRes.ok) {
-        const coursesData = await coursesRes.json();
-        const roomsData = await roomsRes.json();
-        const timeslotsData = await timeslotsRes.json();
-
-        setCourses(coursesData);
-        setRooms(roomsData);
-        setTimeslots(timeslotsData);
-
-        // 3. Map IDs to actual names for display
-        const formattedSchedule = rawSchedule.assignments.map(assignment => {
-          const course = coursesData.find(c => c.id === assignment.courseId) || {};
-          const room = roomsData.find(r => r.id === assignment.roomId) || {};
-          const timeslot = timeslotsData.find(t => t.id === assignment.timeslotId) || {};
-
-          return {
-            courseCode: course.code,
-            courseTitle: course.title,
-            level: course.level,
-            lecturer: course.lecturer,
-            roomName: room.name,
-            date: timeslot.date ? new Date(timeslot.date).toLocaleDateString() : 'N/A',
-            time: timeslot.label || `${timeslot.startTime} - ${timeslot.endTime}`,
-          };
-        });
-
-        // Sort by Date, then Time, then Level
-        formattedSchedule.sort((a, b) => {
-           if (a.date !== b.date) return new Date(a.date) - new Date(b.date);
-           if (a.time !== b.time) return a.time.localeCompare(b.time);
-           return a.level.localeCompare(b.level);
-        });
-
-        setSchedule(formattedSchedule);
+      if (!coursesRes.ok || !roomsRes.ok || !timeslotsRes.ok) {
+        setIsLoading(false);
+        return;
       }
+
+      const coursesData = await coursesRes.json();
+      const roomsData = await roomsRes.json();
+      const timeslotsData = await timeslotsRes.json();
+
+      const formattedSchedule = rawSchedule.assignments.map(assignment => {
+        const course = coursesData.find(c => c.id === assignment.courseId) || {};
+        const room = roomsData.find(r => r.id === assignment.roomId) || {};
+        const timeslot = timeslotsData.find(t => t.id === assignment.timeslotId) || {};
+
+        return {
+          courseCode: course.code || "Unknown",
+          courseTitle: course.title || "Unknown",
+          level: course.level || "N/A",
+          lecturer: course.lecturer || "Unknown",
+          roomName: room.name || "Unknown",
+          date: timeslot.date ? new Date(timeslot.date).toLocaleDateString() : 'N/A',
+          time: timeslot.label || `${timeslot.startTime} - ${timeslot.endTime}`,
+        };
+      });
+
+      formattedSchedule.sort((a, b) => {
+          if (a.date !== b.date) return new Date(a.date) - new Date(b.date);
+          if (a.time !== b.time) return a.time.localeCompare(b.time);
+          return (a.level || "").localeCompare(b.level || "");
+      });
+
+      setSchedule(formattedSchedule);
     } catch (error) {
       console.error("Error formatting timetable:", error);
     }
     setIsLoading(false);
   };
 
-  const exportPDF = () => {
+const exportPDF = () => {
     if (schedule.length === 0) return alert("No timetable data to export.");
 
     const doc = new jsPDF();
     
-    // Add Header
-    doc.setFontSize(18);
-    doc.setTextColor(43, 54, 116); // Your dark blue
-    doc.text("Official Examination Timetable", 14, 22);
+    // --- OFFICIAL LETTERHEAD ---
+    doc.setFontSize(22);
+    doc.setTextColor(43, 54, 116);
+    doc.text("LEAD CITY UNIVERSITY", 14, 22);
     
-    doc.setFontSize(11);
+    doc.setFontSize(12);
     doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+    doc.text("Department of Software Engineering", 14, 30);
+    
+    // --- DOCUMENT TITLE ---
+    doc.setFontSize(16);
+    doc.setTextColor(43, 54, 116);
+    doc.text("Official Examination Timetable", 14, 44);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated by Automated Timetabling System on: ${new Date().toLocaleDateString()}`, 14, 50);
 
-    // Prepare table data
+    // --- TABLE GENERATION ---
     const tableColumn = ["Date", "Time", "Level", "Course Code", "Course Title", "Hall / Room", "Chief Examiner"];
-    const tableRows = [];
+    const tableRows = schedule.map(item => [
+      item.date, item.time, item.level, item.courseCode, item.courseTitle, item.roomName, item.lecturer
+    ]);
 
-    schedule.forEach(item => {
-      const rowData = [
-        item.date,
-        item.time,
-        item.level,
-        item.courseCode,
-        item.courseTitle,
-        item.roomName,
-        item.lecturer
-      ];
-      tableRows.push(rowData);
-    });
-
-    // AutoTable plugin
-    doc.autoTable({
+    // 👇 CHANGED THIS PART 👇
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
-      startY: 40,
+      startY: 58, 
       theme: 'grid',
       styles: { fontSize: 9, cellPadding: 3 },
-      headStyles: { fillColor: [67, 24, 255] }, // Your primary purple
+      headStyles: { fillColor: [67, 24, 255] }, 
       alternateRowStyles: { fillColor: [244, 247, 254] },
     });
 
-    doc.save("Exam_Timetable_Schedule.pdf");
+    doc.save("LCU_Exam_Timetable.pdf");
   };
 
   return (
     <TimetableViewWrap>
-      <div className="view-header">
+      {/* PERFECTLY MATCHED HEADER CLASSES */}
+      <div className="screen-header">
         <div className="header-text">
-          <h1><MdGridOn /> Final Timetable Schedule</h1>
+          <h1><MdGridOn style={{ marginRight: "8px" }} /> Final Timetable Schedule</h1>
           <p>Review the optimized schedule below or export it for distribution.</p>
         </div>
-        <button className="export-btn" onClick={exportPDF} disabled={schedule.length === 0}>
-          <MdPictureAsPdf size={20} />
-          Export as PDF
-        </button>
+        <div className="export-actions">
+          <button className="btn-pdf" onClick={exportPDF} disabled={schedule.length === 0}>
+            <MdPictureAsPdf size={20} />
+            Export PDF
+          </button>
+        </div>
       </div>
 
-      <div className="table-container scrollbar">
+      {/* PERFECTLY MATCHED TABLE CLASSES */}
+      <div className="timetable-container">
         {isLoading ? (
-          <div className="empty-state">Loading generated schedule...</div>
+          <div style={{ padding: "40px", textAlign: "center", color: "#A3AED0" }}>
+            Loading generated schedule...
+          </div>
         ) : schedule.length === 0 ? (
-          <div className="empty-state">
+          <div style={{ padding: "40px", textAlign: "center", color: "#A3AED0" }}>
             <h3>No timetable generated yet</h3>
             <p>Go to the Generation Engine to run the algorithm first.</p>
           </div>
         ) : (
-          <table className="timetable-grid">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Session Time</th>
-                <th>Level</th>
-                <th>Course</th>
-                <th>Hall Allocation</th>
-                <th>Chief Examiner</th>
-              </tr>
-            </thead>
-            <tbody>
-              {schedule.map((row, index) => (
-                <tr key={index}>
-                  <td className="font-bold">{row.date}</td>
-                  <td>{row.time}</td>
-                  <td><span className="level-badge">{row.level}</span></td>
-                  <td>
-                    <div className="course-info">
+          <div className="table-block scrollbar">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Session Time</th>
+                  <th>Level</th>
+                  <th>Course</th>
+                  <th>Hall Allocation</th>
+                  <th>Chief Examiner</th>
+                </tr>
+              </thead>
+              <tbody>
+                {schedule.map((row, index) => (
+                  <tr key={index}>
+                    <td style={{ fontWeight: "bold" }}>{row.date}</td>
+                    <td>{row.time}</td>
+                    <td>{row.level}</td>
+                    <td>
                       <span className="course-code">{row.courseCode}</span>
                       <span className="course-title">{row.courseTitle}</span>
-                    </div>
-                  </td>
-                  <td className="room-cell">{row.roomName}</td>
-                  <td>{row.lecturer}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </td>
+                    <td>{row.roomName}</td>
+                    <td>{row.lecturer}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </TimetableViewWrap>

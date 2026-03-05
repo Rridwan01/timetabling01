@@ -83,3 +83,19 @@ export const generateTimetable = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error during timetable generation." });
   }
 };
+
+/**
+ * DELETE /api/timetable/reset
+ * Danger Zone: Wipes courses, rooms, and timetable history for a fresh start.
+ */
+export const resetSystem = async (req: Request, res: Response) => {
+  try {
+    // TRUNCATE empties the tables. CASCADE automatically deletes any linked assignments!
+    await query('TRUNCATE TABLE assignments, timetable_runs, run_configs, courses, rooms RESTART IDENTITY CASCADE');
+    
+    res.json({ message: "System completely reset. All courses and rooms wiped." });
+  } catch (error) {
+    console.error("Error resetting system:", error);
+    res.status(500).json({ error: "Failed to reset the system." });
+  }
+};
