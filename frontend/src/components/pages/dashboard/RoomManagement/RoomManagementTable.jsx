@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { fetchWithAuth } from "../../../fetchWithAuth";
+import { fetchWithAuth } from "../../../../fetchWithAuth";
 import { MdEdit, MdDelete, MdAdd, MdClose, MdCheck } from "react-icons/md";
 import { BlockTableWrap, BlockTitle } from "../../../../styles/global/default";
 import { RoomTableWrap } from "./RoomManagementTable.styles";

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import { fetchWithAuth } from "../../../fetchWithAuth";
+import { fetchWithAuth } from "../../../../fetchWithAuth";
 import { SummaryWrap } from "./Summary.styles";
 import { BlockContentWrap } from "../../../../styles/global/default";
 import {
