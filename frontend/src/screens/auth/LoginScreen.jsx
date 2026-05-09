@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PropTypes from "prop-types";
 import styled from "styled-components";
 
 // --- Styled Components ---
@@ -69,6 +70,9 @@ const ErrorMessage = styled.p`
 
 // --- Component logic ---
 const LoginScreen = ({ setAuth }) => {
+LoginScreen.propTypes = {
+  setAuth: PropTypes.func.isRequired,
+};
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");

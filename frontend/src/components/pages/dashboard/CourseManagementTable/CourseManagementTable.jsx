@@ -6,7 +6,7 @@ import { CourseTableWrap } from "./CourseManagementTable.styles";
 const CourseManagementTable = () => {
   const [courses, setCourses] = useState([]); // Start empty, fetch from DB
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ id: null, code: "", title: "", level: "", num_students: "", lecturer: "" }); // Note: updated 'name' to 'title', 'students' to 'num_students' to match DB
+  const [formData, setFormData] = useState({ id: null, code: "", title: "", level: "", num_students: "", lecturer: "" });
   const [error, setError] = useState("");
 
   // Get token helper

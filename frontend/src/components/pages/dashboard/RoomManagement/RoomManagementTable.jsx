@@ -1,26 +1,34 @@
 import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import { fetchWithAuth } from "../../../fetchWithAuth";
 import { MdEdit, MdDelete, MdAdd, MdClose, MdCheck } from "react-icons/md";
 import { BlockTableWrap, BlockTitle } from "../../../../styles/global/default";
 import { RoomTableWrap } from "./RoomManagementTable.styles";
 
-const RoomManagementTable = () => {
+const RoomManagementTable = ({ onAuthError }) => {
   const [rooms, setRooms] = useState([]); // Start empty, fetch from real DB
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ id: null, name: "", capacity: "", availability: "Available" });
   const [error, setError] = useState("");
 
-  const getToken = () => localStorage.getItem("token");
+  // Removed unused getToken
 
   // 1. FETCH ROOMS ON LOAD
   useEffect(() => {
     fetchRooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+RoomManagementTable.propTypes = {
+  onAuthError: PropTypes.func,
+};
 
   const fetchRooms = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/rooms", {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
+      const response = await fetchWithAuth(
+        "http://localhost:3000/api/rooms",
+        {},
+        onAuthError
+      );
       if (response.ok) {
         const data = await response.json();
         setRooms(data);
@@ -54,10 +62,11 @@ const RoomManagementTable = () => {
   const handleDeleteClick = async (id) => {
     if (window.confirm("Are you sure you want to delete this room?")) {
       try {
-        const response = await fetch(`http://localhost:3000/api/rooms/${id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${getToken()}` },
-        });
+        const response = await fetchWithAuth(
+          `http://localhost:3000/api/rooms/${id}`,
+          { method: "DELETE" },
+          onAuthError
+        );
 
         if (response.ok) {
           setRooms(rooms.filter((room) => room.id !== id));
@@ -87,14 +96,15 @@ const RoomManagementTable = () => {
     };
     
     try {
-        const response = await fetch(url, {
+        const response = await fetchWithAuth(
+          url,
+          {
             method: method,
-            headers: { 
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${getToken()}` 
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
-        });
+          },
+          onAuthError
+        );
 
         if (response.ok) {
             fetchRooms(); // Refresh the list from the database

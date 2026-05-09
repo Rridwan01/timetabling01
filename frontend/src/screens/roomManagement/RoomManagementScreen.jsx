@@ -1,8 +1,12 @@
-import React from "react";
+import PropTypes from "prop-types";
 import { RoomManagement } from "./RoomManagementScreen.styles";
 import RoomManagementTable from "../../components/pages/dashboard/RoomManagement/RoomManagementTable.jsx";
 
-const RoomManagementScreen = () => {
+
+const RoomManagementScreen = ({ onAuthError }) => {
+RoomManagementScreen.propTypes = {
+  onAuthError: PropTypes.func,
+};
   return (
     <RoomManagement>
       <div className="screen-header">
@@ -10,7 +14,7 @@ const RoomManagementScreen = () => {
       </div>
 
       <div className="table-container">
-        <RoomManagementTable />
+        <RoomManagementTable onAuthError={onAuthError} />
       </div>
     </RoomManagement>
   );

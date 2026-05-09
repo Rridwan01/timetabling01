@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import "normalize.css";
 import { ThemeProvider } from "styled-components";
 import { theme } from "./styles/theme/theme";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { GlobalStyles } from "./styles/global/globalStyles";
 
 import BaseLayout from "./components/layout/BaseLayout";
@@ -43,7 +43,7 @@ function App() {
               <Route path="/" element={<BaseLayout />}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/course-management" element={<CourseManagementScreen />} />
-                <Route path="/room-management" element={<RoomManagementScreen />} />
+                <Route path="/room-management" element={<RoomManagementScreen onAuthError={() => setIsAuthenticated(false)} />} />
                 <Route path="/constraints" element={<ConstraintsScreen />} />
                 <Route path="/generate-timetable" element={<GenerateTimetableScreen />} />
                 <Route path="/timetable-view" element={<TimetableViewScreen />} />

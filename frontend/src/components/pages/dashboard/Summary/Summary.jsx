@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import { fetchWithAuth } from "../../../fetchWithAuth";
 import { SummaryWrap } from "./Summary.styles";
 import { BlockContentWrap } from "../../../../styles/global/default";
 import {
@@ -11,7 +13,7 @@ import {
 } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 
-const Summary = () => {
+const Summary = ({ onAuthError }) => {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalCourses: 0,
@@ -19,18 +21,14 @@ const Summary = () => {
     totalCapacity: 0,
   });
 
-  const getToken = () => localStorage.getItem("token");
+  // Removed unused getToken
 
   useEffect(() => {
     const fetchDashboardStats = async () => {
       try {
         const [coursesRes, roomsRes] = await Promise.all([
-          fetch("http://localhost:3000/api/courses", {
-            headers: { Authorization: `Bearer ${getToken()}` },
-          }),
-          fetch("http://localhost:3000/api/rooms", {
-            headers: { Authorization: `Bearer ${getToken()}` },
-          }),
+          fetchWithAuth("http://localhost:3000/api/courses", {}, onAuthError),
+          fetchWithAuth("http://localhost:3000/api/rooms", {}, onAuthError),
         ]);
 
         if (coursesRes.ok && roomsRes.ok) {
@@ -52,7 +50,11 @@ const Summary = () => {
       }
     };
     fetchDashboardStats();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onAuthError]);
+Summary.propTypes = {
+  onAuthError: PropTypes.func,
+};
 
   // --- THE NUCLEAR RESET FUNCTION ---
   const handleResetSystem = async () => {
@@ -62,12 +64,10 @@ const Summary = () => {
 
     if (confirmReset) {
       try {
-        const response = await fetch(
+        const response = await fetchWithAuth(
           "http://localhost:3000/api/timetable/reset",
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${getToken()}` },
-          },
+          { method: "DELETE" },
+          onAuthError
         );
 
         if (response.ok) {
