@@ -8,7 +8,7 @@ export const CustomCalendarWrap = styled.div`
 
   .calendar-head {
     margin-bottom: 20px;
-    
+
     .head-ttl {
       font-size: 20px;
     }
@@ -17,6 +17,13 @@ export const CustomCalendarWrap = styled.div`
   .calendar-body {
     display: flex;
     justify-content: center;
+  }
+
+  .highlight-exam-day {
+    background-color: #4caf50 !important; /* A nice green color */
+    color: white !important;
+    font-weight: bold;
+    border-radius: 50%; /* Makes the highlight a circle */
   }
 
   .react-calendar {

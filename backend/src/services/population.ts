@@ -1,4 +1,10 @@
-import { Timetable, Course, Room, Timeslot, ExamAssignment } from "../models/timetable";
+import {
+  Timetable,
+  Course,
+  Room,
+  Timeslot,
+  ExamAssignment,
+} from "../models/timetable";
 
 /**
  * Generates a completely random initial timetable (Chromosome).
@@ -6,24 +12,31 @@ import { Timetable, Course, Room, Timeslot, ExamAssignment } from "../models/tim
 export function generateRandomTimetable(
   courses: Course[],
   rooms: Room[],
-  timeslots: Timeslot[]
+  timeslots: Timeslot[],
 ): Timetable {
   const assignments: ExamAssignment[] = [];
-  
-  // Filter out rooms that are under maintenance right from the start
-  const availableRooms = rooms.filter(r => r.availability === 'Available');
+  const availableRooms = rooms.filter((r) => r.availability === "Available");
 
   for (const course of courses) {
-    // Pick a random timeslot
-    const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
-    // Pick a random AVAILABLE room
-    const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
+    const randomTimeslot =
+      timeslots[Math.floor(Math.random() * timeslots.length)];
 
-    assignments.push({
-      courseId: course.id,
-      roomId: randomRoom.id,
-      timeslotId: randomTimeslot.id,
-    });
+    let unassignedStudents = course.numStudents;
+    // Shuffle rooms to randomize selection
+    let shuffledRooms = [...availableRooms].sort(() => 0.5 - Math.random());
+
+    for (const room of shuffledRooms) {
+      if (unassignedStudents <= 0) break; // Stop when everyone has a seat
+
+      assignments.push({
+        courseId: course.id,
+        roomId: room.id,
+        timeslotId: randomTimeslot.id,
+      });
+
+      // Deduct this room's capacity from the remaining students
+      unassignedStudents -= room.capacity;
+    }
   }
 
   return { assignments };

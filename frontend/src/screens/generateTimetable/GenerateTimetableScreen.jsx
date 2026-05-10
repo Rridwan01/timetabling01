@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { GenerateWrap } from "./GenerateTimetableScreen.styles";
 import { MdSettings, MdPlayArrow, MdStop, MdCheckCircle } from "react-icons/md";

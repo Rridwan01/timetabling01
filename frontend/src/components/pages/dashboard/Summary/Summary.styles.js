@@ -1,162 +1,159 @@
 import styled from "styled-components";
-import { media, theme } from "../../../../styles/theme/theme";
 
 export const SummaryWrap = styled.div`
-  margin-bottom: 20px;
+  .dash-board-content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
 
-  ${media.xxxl`
-    margin-bottom: 12px;
-  `}
-
+  /* --- Top 4 Metric Blocks --- */
   .dboard-summary-blocks {
     display: grid;
-    /* Changed from 6 to 4 columns to fit the new metrics perfectly */
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    align-items: start;
-
-    ${media.xxxl`
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    `}
-
-    ${media.sm`
-      grid-template-columns: repeat(1, 1fr);
-    `}
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
   }
 
   .dboard-block {
     display: flex;
     align-items: center;
-    column-gap: 16px;
-    padding: 20px 16px;
+    gap: 16px;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease;
 
-    .summary-block-icon {
-      width: 48px;
-      height: 48px;
-      background-color: ${theme.colors.spaceCadet2};
-      border-radius: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 48px;
-      color: ${theme.colors.majorelleBlue};
-
-      svg {
-        width: 28px;
-        height: 28px;
-      }
-    }
-
-    .summary-block-ttl {
-      font-size: 14px;
-      color: ${theme.colors.powderBlue};
-      font-weight: 500;
-    }
-
-    .summary-block-details {
-      display: flex;
-      flex-direction: column;
-      row-gap: 2px;
-    }
-
-    .summary-block-val {
-      font-size: 24px;
-      font-weight: 700;
-      line-height: 1.4;
-      color: ${theme.colors.white};
-    }
-
-    .summary-block-text {
-      font-size: 12px;
-      font-weight: 400;
-      color: ${theme.colors.powderBlue};
-
-      .text-percent {
-        color: ${theme.colors.success};
-        font-weight: 700;
-      }
+    &:hover {
+      transform: translateY(-2px);
     }
   }
 
-  /* Styling for the Generate Timetable Banner */
-  .generate-banner {
-    margin-top: 20px;
-    background: linear-gradient(
-      135deg,
-      ${theme.colors.spaceCadet1} 0%,
-      rgba(117, 81, 255, 0.15) 100%
-    );
-    border: 1px solid rgba(117, 81, 255, 0.2);
-    border-radius: 20px;
-    padding: 32px;
+  .summary-block-icon {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 20px;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: rgba(67, 97, 238, 0.1); /* Soft primary blue */
+    color: #4361ee;
+    font-size: 28px;
+  }
 
-    ${media.md`
+  .summary-block-details {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .summary-block-ttl {
+    font-size: 14px;
+    color: #888;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .summary-block-val {
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 4px;
+  }
+
+  .summary-block-text {
+    font-size: 13px;
+    color: #666;
+
+    .text-percent {
+      font-weight: 600;
+      color: #4CAF50; /* Green highlight for percentages/capacity */
+    }
+  }
+
+  /* --- The Generation Banner --- */
+  .generate-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 28px;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-radius: 12px;
+    color: #ffffff;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  }
+
+  .banner-text {
+    max-width: 600px;
+    
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #ffffff;
+    }
+
+    p {
+      font-size: 15px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+  }
+
+  /* --- Banner Buttons --- */
+  .generate-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #4CAF50; /* Green for GO */
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3);
+    transition: all 0.2s ease;
+
+    &:hover {
+      background-color: #43a047;
+      transform: scale(1.02);
+    }
+  }
+
+  .reset-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(239, 68, 68, 0.1); /* Transparent Red */
+    color: #ef4444; /* Red text */
+    font-size: 15px;
+    font-weight: 600;
+    padding: 12px 20px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background-color: #ef4444;
+      color: white;
+    }
+  }
+
+  /* Responsive Adjustments */
+  @media (max-width: 768px) {
+    .generate-banner {
       flex-direction: column;
       align-items: flex-start;
-      padding: 24px;
-    `}
-
-    .banner-text {
-      h2 {
-        color: ${theme.colors.white};
-        font-size: 24px;
-        font-weight: 700;
-        margin-bottom: 8px;
-      }
-      p {
-        color: ${theme.colors.powderBlue};
-        font-size: 15px;
-        line-height: 1.5;
-        max-width: 600px;
-      }
     }
-
-    .generate-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background-color: ${theme.colors.majorelleBlue};
-      color: ${theme.colors.white};
-      padding: 16px 24px;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 700;
-      white-space: nowrap;
-      box-shadow: 0 4px 15px rgba(117, 81, 255, 0.4);
-
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(117, 81, 255, 0.6);
-      }
-    }
-
-    /* --- NEW PREMIUM RESET BUTTON --- */
-    .reset-btn {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background-color: transparent;
-      color: #ee5d50;
-      border: 1px solid rgba(238, 93, 80, 0.5);
-      padding: 16px 24px; /* Matches generate-btn perfectly */
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 700;
-      white-space: nowrap;
-      cursor: pointer;
-      transition: all 0.2s ease-in-out;
-
-      &:hover {
-        background-color: rgba(238, 93, 80, 0.1); /* Soft, elegant red tint */
-        border-color: #ee5d50;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(238, 93, 80, 0.2);
-      }
+    
+    .generate-btn, .reset-btn {
+      width: 100%;
+      justify-content: center;
     }
   }
 `;

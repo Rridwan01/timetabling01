@@ -9,9 +9,14 @@ export const DashboardScreenWrap = styled.div`
     display: grid;
     gap: 20px;
 
-    &.auxiliary-row {
-      /* Calendar takes up 2/3rds, Team members take up 1/3rd */
-      grid-template-columns: 2fr 1fr;
+    .auxiliary-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 24px;
+      align-items: start;
+      width: 100%;
+    }
 
       ${media.lg`
         grid-template-columns: 1fr;

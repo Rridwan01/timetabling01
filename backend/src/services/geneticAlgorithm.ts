@@ -28,20 +28,30 @@ export function runGeneticAlgorithm(
   let bestFitness = evaluateFitness(bestTimetable, courses, rooms, timeslots, config);
 
   for (let generation = 0; generation < generations; generation++) {
-    const fitnessScores = population.map((timetable) =>
-      evaluateFitness(timetable, courses, rooms, timeslots, config)
-    );
+    // 1. Score and Sort the entire population (Best to Worst)
+    const scoredPopulation = population.map((timetable) => ({
+      timetable,
+      fitness: evaluateFitness(timetable, courses, rooms, timeslots, config)
+    })).sort((a, b) => b.fitness - a.fitness);
 
-    for (let i = 0; i < fitnessScores.length; i++) {
-      if (fitnessScores[i] > bestFitness) {
-        bestFitness = fitnessScores[i];
-        bestTimetable = population[i];
-      }
+    // Track global best
+    if (scoredPopulation[0].fitness > bestFitness) {
+      bestFitness = scoredPopulation[0].fitness;
+      bestTimetable = scoredPopulation[0].timetable;
     }
 
+    const newPopulation: Timetable[] = [];
+    
+    // 2. ELITISM: Pass the top 2 timetables directly to the next generation
+    const elitismCount = 2;
+    for (let i = 0; i < elitismCount; i++) {
+      // Deep copy to prevent mutation reference bugs
+      newPopulation.push(JSON.parse(JSON.stringify(scoredPopulation[i].timetable)));
+    }
+
+    // 3. Tournament Selection for the rest
     const parents: Timetable[] = [];
-    for (let i = 0; i < popSize; i++) {
-      // Tournament Selection
+    for (let i = 0; i < popSize - elitismCount; i++) {
       const parent1 = population[Math.floor(Math.random() * popSize)];
       const parent2 = population[Math.floor(Math.random() * popSize)];
       parents.push(
@@ -52,39 +62,34 @@ export function runGeneticAlgorithm(
       );
     }
 
-    const newPopulation: Timetable[] = [];
+    // 4. Crossover & Mutation for the new children
     for (let i = 0; i < parents.length; i += 2) {
       const parent1 = parents[i];
       const parent2 = parents[i + 1] || parents[0];
-
       const crossoverPoint = Math.floor(Math.random() * parent1.assignments.length);
 
-      newPopulation.push({
+      const child1 = {
         assignments: [
           ...parent1.assignments.slice(0, crossoverPoint),
           ...parent2.assignments.slice(crossoverPoint),
         ]
-      });
-      newPopulation.push({
-        assignments: [
-          ...parent2.assignments.slice(0, crossoverPoint),
-          ...parent1.assignments.slice(crossoverPoint),
-        ]
-      });
-    }
-
-    for (const timetable of newPopulation) {
+      };
+      
+      // Apply Mutation to Child
       if (Math.random() < mutationRate) {
-        const randomIndex = Math.floor(Math.random() * timetable.assignments.length);
+        const randomIndex = Math.floor(Math.random() * child1.assignments.length);
         const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
         const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
-
-        timetable.assignments[randomIndex] = {
-          ...timetable.assignments[randomIndex],
+        child1.assignments[randomIndex] = {
+          ...child1.assignments[randomIndex],
           timeslotId: randomTimeslot.id,
           roomId: randomRoom.id,
         };
       }
+      newPopulation.push(child1);
+      
+      // Stop if we hit population limit
+      if (newPopulation.length >= popSize) break;
     }
 
     population = newPopulation;

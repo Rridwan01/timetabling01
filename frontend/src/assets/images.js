@@ -1,4 +1,4 @@
-import Avatar from "./images/avatar.png";
+import Avatar from "./images/avatar.jpg";
 import UsaFlag from "./images/usa_flag.png";
 import Team1 from "./images/team1.png";
 import Team2 from "./images/team2.png";

@@ -2,8 +2,7 @@ import { useDispatch } from "react-redux";
 import { useLocation } from "react-router-dom";
 import { AppBarWrap } from "./AppBar.styles";
 import { setSidebarOpen } from "../../redux/slices/sidebarSlice";
-import { MdMenu, MdNotifications } from "react-icons/md";
-import { FiSearch } from "react-icons/fi";
+import { MdMenu } from "react-icons/md";
 import { IoMdInformationCircleOutline } from "react-icons/io";
 import { Images } from "../../assets/images";
 
@@ -11,7 +10,6 @@ const AppBar = () => {
   const dispatch = useDispatch();
   const location = useLocation();
 
-  // Dynamically set the title based on the current URL path
   const getPageTitle = () => {
     switch (location.pathname) {
       case "/": return "Main Dashboard";
@@ -37,36 +35,35 @@ const AppBar = () => {
           >
             <MdMenu size={24} />
           </button>
-          {/* <p className="appbar-head-breadcrumb">Pages / {pageTitle}</p> */}
         </div>
         
         <div className="appbar-head-main">
           <h3 className="appbar-head-ttl">{pageTitle}</h3>
           
           <div className="appbar-head-rtl">
-            <form className="appbar-head-search">
-              <span className="appbar-search-icon">
-                <FiSearch />
-              </span>
-              <input
-                type="text"
-                className="appbar-search-input"
-                placeholder="Search"
-              />
-            </form>
+            {/* Removed the fake search bar and notification bell */}
+            
             <div className="appbar-head-misc">
-              <button type="button" className="appbar-head-notif">
-                <MdNotifications size={24} />
-              </button>
-              <button type="button" className="appbar-head-info">
-                <IoMdInformationCircleOutline size={24} />
+              <button 
+                type="button" 
+                className="appbar-head-info"
+                onClick={() => alert("Automated Exam Timetabling System\nBuilt for optimization and clash-free scheduling.")}
+              >
+                <IoMdInformationCircleOutline size={26} />
               </button>
             </div>
-            <div className="appbar-head-profile">
+
+            {/* Personalized Profile Section */}
+            <div className="appbar-head-profile" style={{ display: 'flex', alignItems: 'center', gap: '12px', borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span style={{ color: '#fff', fontSize: '14px', fontWeight: '600' }}>Ridwan</span>
+                <span style={{ color: '#aaa', fontSize: '12px' }}>System Admin</span>
+              </div>
               <div className="appbar-head-avatar">
                 <img src={Images.Avatar} alt="Profile" />
               </div>
             </div>
+
           </div>
         </div>
       </div>

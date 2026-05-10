@@ -36,7 +36,7 @@ const NotFoundScreen = () => {
     <Container>
       <Title>404</Title>
       <Subtitle>Page Not Found</Subtitle>
-      <p style={{ color: "#a3aed0" }}>The route you are looking for doesn't exist.</p>
+      <p style={{ color: "#a3aed0" }}>The route you are looking for doesn&apos;t exist.</p>
       <StyledLink to="/">Return to Dashboard</StyledLink>
     </Container>
   );

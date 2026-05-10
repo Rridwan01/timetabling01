@@ -1,31 +1,30 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { query } from '../db/index'; // <-- Correctly importing query here
+import { query } from '../db/index'; 
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_key_change_in_production';
 
 // ==========================================
-// 1. REGISTER ROUTE (Run this once)
+// 1. REGISTER ROUTE 
 // ==========================================
 router.post('/register', async (req: Request, res: Response): Promise<void> => {
     const { username, password } = req.body;
 
     try {
-        // Hash the password securely
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
 
-        // Save to database
+        // CHANGED: Insert into 'admins' table instead of 'users'
         const result = await query(
-            'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username',
-            [username, passwordHash, 'admin']
+            'INSERT INTO admins (username, password_hash) VALUES ($1, $2) RETURNING id, username',
+            [username, passwordHash]
         );
 
-        res.json({ message: 'User created successfully!', user: result.rows[0] });
+        res.json({ message: 'Admin created successfully!', user: result.rows[0] });
     } catch (error: any) {
-        if (error.code === '23505') { // PostgreSQL unique violation code
+        if (error.code === '23505') { 
             res.status(400).json({ error: 'Username already exists' });
         } else {
             console.error('Register error:', error);
@@ -35,14 +34,14 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
 });
 
 // ==========================================
-// 2. LOGIN ROUTE (Run this after registering)
+// 2. LOGIN ROUTE 
 // ==========================================
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
     const { username, password } = req.body;
 
     try {
-        // 1. Check if user exists
-        const result = await query('SELECT * FROM users WHERE username = $1', [username]);
+        // CHANGED: Select from 'admins' table
+        const result = await query('SELECT * FROM admins WHERE username = $1', [username]);
         if (result.rows.length === 0) {
             res.status(401).json({ error: 'Invalid credentials' });
             return;
@@ -50,16 +49,15 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
         const user = result.rows[0];
 
-        // 2. Validate password using bcrypt
         const isValidPassword = await bcrypt.compare(password, user.password_hash);
         if (!isValidPassword) {
             res.status(401).json({ error: 'Invalid credentials' });
             return;
         }
 
-        // 3. Generate JWT Token
+        // Generate JWT Token (Hardcoding role as 'admin' since everyone in this table is an admin)
         const token = jwt.sign(
-            { id: user.id, username: user.username, role: user.role },
+            { id: user.id, username: user.username, role: 'admin' },
             JWT_SECRET,
             { expiresIn: '24h' }
         );
@@ -67,7 +65,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
         res.json({
             message: 'Login successful',
             token,
-            user: { id: user.id, username: user.username, role: user.role }
+            user: { id: user.id, username: user.username, role: 'admin' }
         });
     } catch (error) {
         console.error('Login error:', error);

@@ -33,6 +33,8 @@ export function evaluateFitness(
   const levelDateMap = new Map<string, number>(); 
 
   // 1. ITERATE THROUGH ASSIGNMENTS
+  // Build a map: key = courseId-timeslotId, value = array of roomIds
+  const courseTimeslotToRooms = new Map<string, number[]>();
   for (const assignment of timetable.assignments) {
     const course = courseMap.get(assignment.courseId);
     const room = roomMap.get(assignment.roomId);
@@ -40,14 +42,19 @@ export function evaluateFitness(
 
     if (!course || !room || !timeslot) continue;
 
+    // For room clash
     const roomTimeKey = `${room.id}-${timeslot.id}`;
     roomTimeslotMap.set(roomTimeKey, (roomTimeslotMap.get(roomTimeKey) || 0) + 1);
 
-    if (room.availability === 'Maintenance') {
-      penalty += HARD_PENALTY;
+    // For capacity sum
+    const courseTimeKey = `${course.id}-${timeslot.id}`;
+    if (!courseTimeslotToRooms.has(courseTimeKey)) {
+      courseTimeslotToRooms.set(courseTimeKey, []);
     }
+  const arr = courseTimeslotToRooms.get(courseTimeKey);
+  if (arr) arr.push(room.id);
 
-    if (config.hard_constraints.roomCapacity && course.numStudents > room.capacity) {
+    if (room.availability === 'Maintenance') {
       penalty += HARD_PENALTY;
     }
 
@@ -67,6 +74,24 @@ export function evaluateFitness(
 
     const levelDateKey = `${course.level}-${timeslot.date}`;
     levelDateMap.set(levelDateKey, (levelDateMap.get(levelDateKey) || 0) + 1);
+  }
+
+  // After collecting, check summed capacity for each course-timeslot
+  if (config.hard_constraints.roomCapacity) {
+    for (const [courseTimeKey, roomIds] of courseTimeslotToRooms.entries()) {
+      // Get courseId and timeslotId from key
+      const [courseIdStr, timeslotIdStr] = courseTimeKey.split("-");
+      const courseId = Number(courseIdStr);
+      const course = courseMap.get(courseId);
+      if (!course) continue;
+      const totalCapacity = roomIds.reduce((sum, roomId) => {
+        const room = roomMap.get(roomId);
+        return sum + (room ? room.capacity : 0);
+      }, 0);
+      if (course.numStudents > totalCapacity) {
+        penalty += HARD_PENALTY;
+      }
+    }
   }
 
   // 2. APPLY PENALTIES

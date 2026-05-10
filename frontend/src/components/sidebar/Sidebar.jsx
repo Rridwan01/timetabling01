@@ -1,5 +1,4 @@
 import { SidebarWrap } from "./Sidebar.styles";
-import { FaSkyatlas } from "react-icons/fa6";
 import {
   MdClose,
   MdDashboard,

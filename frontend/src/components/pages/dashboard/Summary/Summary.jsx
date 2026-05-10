@@ -3,13 +3,14 @@ import PropTypes from "prop-types";
 import { fetchWithAuth } from "../../../../fetchWithAuth";
 import { SummaryWrap } from "./Summary.styles";
 import { BlockContentWrap } from "../../../../styles/global/default";
+import { addSystemLog } from "../../../../utils/logger";
 import {
   MdLibraryBooks,
   MdMeetingRoom,
   MdTune,
   MdCheckCircle,
   MdPlayArrow,
-  MdDeleteForever, // <-- New Icon for Reset
+  MdDeleteForever,
 } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 
@@ -21,7 +22,11 @@ const Summary = ({ onAuthError }) => {
     totalCapacity: 0,
   });
 
-  // Removed unused getToken
+  const [lastRunData, setLastRunData] = useState({
+    date: "Never",
+    fitness: "0.0",
+    activeConstraints: 0,
+  });
 
   useEffect(() => {
     const fetchDashboardStats = async () => {
@@ -50,11 +55,29 @@ const Summary = ({ onAuthError }) => {
       }
     };
     fetchDashboardStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const savedTimetable = JSON.parse(
+      localStorage.getItem("generated_timetable"),
+    );
+    const savedConstraints = JSON.parse(
+      localStorage.getItem("timetable_constraints"),
+    );
+
+    if (savedTimetable) {
+      setLastRunData({
+        date: new Date(
+          savedTimetable.generatedAt || Date.now(),
+        ).toLocaleDateString(),
+        fitness: savedTimetable.fitnessScore
+          ? savedTimetable.fitnessScore.toFixed(1)
+          : "0.0",
+        activeConstraints: savedConstraints
+          ? Object.values(savedConstraints.hard_constraints).filter(Boolean)
+              .length + 3 // Assuming 3 soft constraints always active
+          : 0,
+      });
+    }
   }, [onAuthError]);
-Summary.propTypes = {
-  onAuthError: PropTypes.func,
-};
 
   // --- THE NUCLEAR RESET FUNCTION ---
   const handleResetSystem = async () => {
@@ -67,7 +90,7 @@ Summary.propTypes = {
         const response = await fetchWithAuth(
           "http://localhost:3000/api/timetable/reset",
           { method: "DELETE" },
-          onAuthError
+          onAuthError,
         );
 
         if (response.ok) {
@@ -75,8 +98,14 @@ Summary.propTypes = {
           localStorage.removeItem("timetable_constraints");
           localStorage.removeItem("generated_timetable");
 
+          // Add the system log right before alerting and reloading
+          addSystemLog(
+            "<strong>Database Reset:</strong> All courses, rooms, and timetables wiped.",
+            "warning",
+          );
+
           alert("System wiped successfully. Ready for a fresh start!");
-          window.location.reload(); // Refresh the page to zero out the stats instantly
+          window.location.reload(); 
         } else {
           alert("Failed to reset the database.");
         }
@@ -122,10 +151,12 @@ Summary.propTypes = {
             </div>
             <div className="summary-block-details">
               <p className="summary-block-ttl">Active Constraints</p>
-              <div className="summary-block-val">8</div>
-              <p className="summary-block-text">
-                <span className="text-percent">3</span> Hard, 5 Soft
-              </p>
+              <div className="summary-block-val">
+                {lastRunData.activeConstraints > 0
+                  ? lastRunData.activeConstraints
+                  : "None"}
+              </div>
+              <p className="summary-block-text">Applied on last run</p>
             </div>
           </BlockContentWrap>
 
@@ -136,10 +167,11 @@ Summary.propTypes = {
             <div className="summary-block-details">
               <p className="summary-block-ttl">Last Generated</p>
               <div className="summary-block-val" style={{ fontSize: "18px" }}>
-                Never
+                {lastRunData.date}
               </div>
               <p className="summary-block-text">
-                Fitness: <span className="text-percent">0.0%</span>
+                Fitness:{" "}
+                <span className="text-percent">{lastRunData.fitness}%</span>
               </p>
             </div>
           </BlockContentWrap>
@@ -163,7 +195,6 @@ Summary.propTypes = {
               Generate New Timetable
             </button>
 
-            {/* CLEANED UP RESET BUTTON */}
             <button className="reset-btn" onClick={handleResetSystem}>
               <MdDeleteForever size={24} />
               Wipe Data
@@ -173,6 +204,11 @@ Summary.propTypes = {
       </div>
     </SummaryWrap>
   );
+};
+
+// Moved propTypes declaration outside of the component body
+Summary.propTypes = {
+  onAuthError: PropTypes.func,
 };
 
 export default Summary;
