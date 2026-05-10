@@ -1,6 +1,6 @@
 import CustomCalendar from "../../components/pages/dashboard/CustomCalendar/CustomCalendar"
 import Summary from "../../components/pages/dashboard/Summary/Summary"
-import SystemLogs from "../../components/pages/dashboard/SystemLog/SystemLogs"
+import TeamMember from "../../components/pages/dashboard/SystemLog/TeamMember"
 import { DashboardScreenWrap } from "./DashboardScreen.styles"
 
 const DashboardScreen = () => {
@@ -12,7 +12,7 @@ const DashboardScreen = () => {
       {/* Simplified bottom row for auxiliary dashboard info */}
       <div className="dboard-blocks-row auxiliary-row">
         <CustomCalendar />
-        <SystemLogs />
+        <TeamMember />
       </div>
     </DashboardScreenWrap>
   )
