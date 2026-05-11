@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { MdEdit, MdDelete, MdAdd, MdClose, MdCheck } from "react-icons/md";
 import { BlockTableWrap, BlockTitle } from "../../../../styles/global/default";
 import { CourseTableWrap } from "./CourseManagementTable.styles";
@@ -12,12 +12,8 @@ const CourseManagementTable = () => {
   // Get token helper
   const getToken = () => localStorage.getItem("token");
 
-  // 1. FETCH COURSES ON LOAD
-  useEffect(() => {
-    fetchCourses();
-  }, []);
-
-  const fetchCourses = async () => {
+  // 1. DEFINE THE FUNCTION FIRST (Wrapped in useCallback)
+  const fetchCourses = useCallback(async () => {
     try {
       const response = await fetch("http://localhost:3000/api/courses", {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -31,7 +27,12 @@ const CourseManagementTable = () => {
     } catch (error) {
       console.error("Error fetching courses:", error);
     }
-  };
+  }, []); // Empty array keeps the function stable in memory
+
+  // 2. CALL IT IN USE-EFFECT SECOND
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]); // Safe to add here now!
 
   // Handle Form Inputs
   const handleInputChange = (e) => {
@@ -41,7 +42,14 @@ const CourseManagementTable = () => {
 
   // Open form for a NEW course
   const handleAddClick = () => {
-    setFormData({ id: null, code: "", title: "", level: "", num_students: "", lecturer: "" });
+    setFormData({
+      id: null,
+      code: "",
+      title: "",
+      level: "",
+      num_students: "",
+      lecturer: "",
+    });
     setShowForm(true);
     setError("");
   };
@@ -49,12 +57,12 @@ const CourseManagementTable = () => {
   // Open form to EDIT an existing course
   const handleEditClick = (course) => {
     setFormData({
-       id: course.id,
-       code: course.code,
-       title: course.title,
-       level: course.level,
-       num_students: course.num_students,
-       lecturer: course.lecturer
+      id: course.id,
+      code: course.code,
+      title: course.title,
+      level: course.level,
+      num_students: course.num_students,
+      lecturer: course.lecturer,
     });
     setShowForm(true);
     setError("");
@@ -64,10 +72,13 @@ const CourseManagementTable = () => {
   const handleDeleteClick = async (id) => {
     if (window.confirm("Are you sure you want to delete this course?")) {
       try {
-        const response = await fetch(`http://localhost:3000/api/courses/${id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${getToken()}` },
-        });
+        const response = await fetch(
+          `http://localhost:3000/api/courses/${id}`,
+          {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${getToken()}` },
+          },
+        );
 
         if (response.ok) {
           setCourses(courses.filter((course) => course.id !== id));
@@ -84,38 +95,38 @@ const CourseManagementTable = () => {
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    
+
     const isUpdate = formData.id !== null;
-    const url = isUpdate 
-        ? `http://localhost:3000/api/courses/${formData.id}` 
-        : "http://localhost:3000/api/courses";
+    const url = isUpdate
+      ? `http://localhost:3000/api/courses/${formData.id}`
+      : "http://localhost:3000/api/courses";
     const method = isUpdate ? "PUT" : "POST";
 
     // Ensure num_students is an integer
     const payload = {
-        ...formData,
-        num_students: parseInt(formData.num_students, 10)
+      ...formData,
+      num_students: parseInt(formData.num_students, 10),
     };
-    
-    try {
-        const response = await fetch(url, {
-            method: method,
-            headers: { 
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${getToken()}` 
-            },
-            body: JSON.stringify(payload),
-        });
 
-        if (response.ok) {
-            fetchCourses(); // Refresh the list from the database
-            setShowForm(false);
-        } else {
-            const data = await response.json();
-            setError(data.error || "Failed to save course");
-        }
+    try {
+      const response = await fetch(url, {
+        method: method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${getToken()}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        fetchCourses(); // Refresh the list from the database
+        setShowForm(false);
+      } else {
+        const data = await response.json();
+        setError(data.error || "Failed to save course");
+      }
     } catch (err) {
-        setError("Network error. Is the backend running?");
+      setError("Network error. Is the backend running?");
     }
   };
 
@@ -132,34 +143,75 @@ const CourseManagementTable = () => {
       {/* --- ADD / EDIT FORM --- */}
       {showForm && (
         <form className="course-form" onSubmit={handleFormSubmit}>
-          {error && <div style={{color: 'red', marginBottom: '10px'}}>{error}</div>}
+          {error && (
+            <div style={{ color: "red", marginBottom: "10px" }}>{error}</div>
+          )}
           <div className="form-grid">
             <div className="form-group">
               <label>Course Code</label>
-              <input type="text" name="code" value={formData.code} onChange={handleInputChange} placeholder="e.g. SEN 401" required />
+              <input
+                type="text"
+                name="code"
+                value={formData.code}
+                onChange={handleInputChange}
+                placeholder="e.g. SEN 401"
+                required
+              />
             </div>
             <div className="form-group">
               <label>Course Title</label>
-              <input type="text" name="title" value={formData.title} onChange={handleInputChange} placeholder="e.g. Software Engineering Project" required />
+              <input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleInputChange}
+                placeholder="e.g. Software Engineering Project"
+                required
+              />
             </div>
             <div className="form-group">
               <label>Level</label>
-              <input type="text" name="level" value={formData.level} onChange={handleInputChange} placeholder="e.g. 400L" required />
+              <input
+                type="text"
+                name="level"
+                value={formData.level}
+                onChange={handleInputChange}
+                placeholder="e.g. 400L"
+                required
+              />
             </div>
             <div className="form-group">
               <label>Number of Students</label>
-              <input type="number" name="num_students" value={formData.num_students} onChange={handleInputChange} placeholder="e.g. 45" required />
+              <input
+                type="number"
+                name="num_students"
+                value={formData.num_students}
+                onChange={handleInputChange}
+                placeholder="e.g. 45"
+                required
+              />
             </div>
             <div className="form-group lecturer-group">
               <label>Lecturer (Chief Examiner)</label>
-              <input type="text" name="lecturer" value={formData.lecturer} onChange={handleInputChange} placeholder="e.g. Dr. A.A. Waheed" required />
+              <input
+                type="text"
+                name="lecturer"
+                value={formData.lecturer}
+                onChange={handleInputChange}
+                placeholder="e.g. Dr. A.A. Waheed"
+                required
+              />
             </div>
           </div>
           <div className="form-actions">
             <button type="submit" className="save-btn">
               <MdCheck size={20} /> Save
             </button>
-            <button type="button" className="cancel-btn" onClick={() => setShowForm(false)}>
+            <button
+              type="button"
+              className="cancel-btn"
+              onClick={() => setShowForm(false)}
+            >
               <MdClose size={20} /> Cancel
             </button>
           </div>
@@ -183,7 +235,14 @@ const CourseManagementTable = () => {
             <tbody>
               {courses.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: "center", padding: "20px", color: "#A3AED0" }}>
+                  <td
+                    colSpan="6"
+                    style={{
+                      textAlign: "center",
+                      padding: "20px",
+                      color: "#A3AED0",
+                    }}
+                  >
                     No courses available yet. Add one above.
                   </td>
                 </tr>
@@ -197,10 +256,20 @@ const CourseManagementTable = () => {
                     <td>{dataItem.lecturer}</td>
                     <td>
                       <div className="data-cell-actions">
-                        <button type="button" className="edit-btn" aria-label="Edit course" onClick={() => handleEditClick(dataItem)}>
+                        <button
+                          type="button"
+                          className="edit-btn"
+                          aria-label="Edit course"
+                          onClick={() => handleEditClick(dataItem)}
+                        >
                           <MdEdit size={22} />
                         </button>
-                        <button type="button" className="delete-btn" aria-label="Delete course" onClick={() => handleDeleteClick(dataItem.id)}>
+                        <button
+                          type="button"
+                          className="delete-btn"
+                          aria-label="Delete course"
+                          onClick={() => handleDeleteClick(dataItem.id)}
+                        >
                           <MdDelete size={22} />
                         </button>
                       </div>

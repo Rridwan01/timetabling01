@@ -1,7 +1,5 @@
 import { Timetable, Course, Room, Timeslot, TimetableConfig } from "../models/timetable";
 
-// --- GLOBAL MEMORY CACHE ---
-// This prevents Node.js from running out of RAM by reusing the maps!
 let cachedCoursesLength = -1;
 let courseMap = new Map<number, Course>();
 let roomMap = new Map<number, Room>();
@@ -15,7 +13,6 @@ export function evaluateFitness(
   config: TimetableConfig 
 ): number {
   
-  // Only rebuild the maps if the database data has changed
   if (courses.length !== cachedCoursesLength) {
     courseMap = new Map<number, Course>(courses.map((c) => [c.id, c]));
     roomMap = new Map<number, Room>(rooms.map((r) => [r.id, r]));
@@ -32,9 +29,10 @@ export function evaluateFitness(
   const examinerTimeslotMap = new Map<string, number>(); 
   const levelDateMap = new Map<string, number>(); 
 
-  // 1. ITERATE THROUGH ASSIGNMENTS
-  // Build a map: key = courseId-timeslotId, value = array of roomIds
-  const courseTimeslotToRooms = new Map<string, number[]>();
+  // --- NEW: Tracking for Course Splitting ---
+  const courseCapacityMap = new Map<string, { totalStudents: number, assignedCapacity: number }>();
+  const courseTimeslotTracker = new Map<number, Set<number>>();
+
   for (const assignment of timetable.assignments) {
     const course = courseMap.get(assignment.courseId);
     const room = roomMap.get(assignment.roomId);
@@ -42,21 +40,22 @@ export function evaluateFitness(
 
     if (!course || !room || !timeslot) continue;
 
-    // For room clash
+    // 1. Ensure the exam is not scheduled on multiple different days/times
+    if (!courseTimeslotTracker.has(course.id)) courseTimeslotTracker.set(course.id, new Set());
+    courseTimeslotTracker.get(course.id)!.add(timeslot.id);
+
+    // 2. Group room capacities together for the same course and timeslot
+    const capacityKey = `${course.id}-${timeslot.id}`;
+    if (!courseCapacityMap.has(capacityKey)) {
+      courseCapacityMap.set(capacityKey, { totalStudents: course.numStudents, assignedCapacity: 0 });
+    }
+    courseCapacityMap.get(capacityKey)!.assignedCapacity += room.capacity;
+
+    // 3. Normal Constraints
     const roomTimeKey = `${room.id}-${timeslot.id}`;
     roomTimeslotMap.set(roomTimeKey, (roomTimeslotMap.get(roomTimeKey) || 0) + 1);
 
-    // For capacity sum
-    const courseTimeKey = `${course.id}-${timeslot.id}`;
-    if (!courseTimeslotToRooms.has(courseTimeKey)) {
-      courseTimeslotToRooms.set(courseTimeKey, []);
-    }
-  const arr = courseTimeslotToRooms.get(courseTimeKey);
-  if (arr) arr.push(room.id);
-
-    if (room.availability === 'Maintenance') {
-      penalty += HARD_PENALTY;
-    }
+    if (room.availability === 'Maintenance') penalty += HARD_PENALTY;
 
     if (config.hard_constraints.studentClash) {
       const levelTimeKey = `${course.level}-${timeslot.id}`;
@@ -68,49 +67,46 @@ export function evaluateFitness(
       examinerTimeslotMap.set(examinerTimeKey, (examinerTimeslotMap.get(examinerTimeKey) || 0) + 1);
     }
 
-    if (room.capacity - course.numStudents > 100) {
-      penalty += (config.soft_constraints.roomUtilization * 5); 
-    }
-
     const levelDateKey = `${course.level}-${timeslot.date}`;
     levelDateMap.set(levelDateKey, (levelDateMap.get(levelDateKey) || 0) + 1);
   }
 
-  // After collecting, check summed capacity for each course-timeslot
+  // --- APPLY PENALTIES ---
+
+  // EXTREME PENALTY: Exam split across multiple timeslots
+  for (const timeslots of courseTimeslotTracker.values()) {
+    if (timeslots.size > 1) penalty += (HARD_PENALTY * 2); 
+  }
+
+  // HARD PENALTY: Capacity Check (Now correctly adds up multiple rooms!)
   if (config.hard_constraints.roomCapacity) {
-    for (const [courseTimeKey, roomIds] of courseTimeslotToRooms.entries()) {
-      // Get courseId and timeslotId from key
-      const [courseIdStr, timeslotIdStr] = courseTimeKey.split("-");
-      const courseId = Number(courseIdStr);
-      const course = courseMap.get(courseId);
-      if (!course) continue;
-      const totalCapacity = roomIds.reduce((sum, roomId) => {
-        const room = roomMap.get(roomId);
-        return sum + (room ? room.capacity : 0);
-      }, 0);
-      if (course.numStudents > totalCapacity) {
+    for (const data of courseCapacityMap.values()) {
+      if (data.totalStudents > data.assignedCapacity) {
         penalty += HARD_PENALTY;
       }
     }
   }
 
-  // 2. APPLY PENALTIES
+  // Double-booked rooms
   for (const count of roomTimeslotMap.values()) {
     if (count > 1) penalty += ((count - 1) * HARD_PENALTY);
   }
 
+  // Student level clashes
   if (config.hard_constraints.studentClash) {
     for (const count of levelTimeslotMap.values()) {
       if (count > 1) penalty += ((count - 1) * HARD_PENALTY);
     }
   }
 
+  // Chief Examiner clashes
   if (config.hard_constraints.chiefExaminerClash) {
     for (const count of examinerTimeslotMap.values()) {
       if (count > 1) penalty += ((count - 1) * HARD_PENALTY);
     }
   }
 
+  // Soft Penalty: Exam spread
   for (const count of levelDateMap.values()) {
     if (count > config.soft_constraints.dailyLimit) {
       penalty += ((count - config.soft_constraints.dailyLimit) * config.soft_constraints.examSpread * 50);

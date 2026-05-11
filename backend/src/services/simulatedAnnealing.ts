@@ -1,4 +1,11 @@
-import { Timetable, ExamAssignment, Timeslot, Course, Room, TimetableConfig } from "../models/timetable";
+import {
+  Timetable,
+  ExamAssignment,
+  Timeslot,
+  Course,
+  Room,
+  TimetableConfig,
+} from "../models/timetable";
 import { evaluateFitness } from "./fitness";
 import { generateRandomTimetable } from "./population";
 
@@ -8,18 +15,34 @@ import { generateRandomTimetable } from "./population";
 function generateNeighbor(
   timetable: Timetable,
   availableRooms: Room[],
-  timeslots: Timeslot[]
+  timeslots: Timeslot[],
 ): Timetable {
   const newAssignments = [...timetable.assignments];
-  const randomIndex = Math.floor(Math.random() * newAssignments.length);
-  const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
-  const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
 
-  newAssignments[randomIndex] = {
-    ...newAssignments[randomIndex],
-    timeslotId: randomTimeslot.id,
-    roomId: randomRoom.id,
-  };
+  // Pick a random COURSE ID instead of a random assignment index
+  const randomCourseId =
+    newAssignments[Math.floor(Math.random() * newAssignments.length)].courseId;
+  const randomTimeslot =
+    timeslots[Math.floor(Math.random() * timeslots.length)];
+
+  let roomChanged = false; // Only change one room per iteration to explore slowly
+
+  for (let i = 0; i < newAssignments.length; i++) {
+    // If this assignment belongs to our randomly picked course, move it!
+    if (newAssignments[i].courseId === randomCourseId) {
+      const newRoomId = roomChanged
+        ? newAssignments[i].roomId
+        : availableRooms[Math.floor(Math.random() * availableRooms.length)].id;
+
+      roomChanged = true;
+
+      newAssignments[i] = {
+        ...newAssignments[i],
+        timeslotId: randomTimeslot.id,
+        roomId: newRoomId,
+      };
+    }
+  }
 
   return { assignments: newAssignments };
 }
@@ -31,22 +54,31 @@ export function runSimulatedAnnealing(
   config: TimetableConfig,
   courses: Course[],
   rooms: Room[],
-  timeslots: Timeslot[]
+  timeslots: Timeslot[],
 ): Timetable {
-  
   // Map UI inputs to SA parameters
   const iterations = config.algorithm_tuning?.generations || 5000;
   let initialTemperature = 1000;
   let coolingRate = 0.95;
-  
+
   if (config.algorithm_tuning?.mutationRate === "High") coolingRate = 0.99; // Cools slower, explores more
   if (config.algorithm_tuning?.mutationRate === "Low") coolingRate = 0.85; // Cools faster
 
-  const availableRooms = rooms.filter(r => r.availability === 'Available');
+  const availableRooms = rooms.filter((r) => r.availability === "Available");
 
   // Generate initial solution
-  let currentSolution = generateRandomTimetable(courses, availableRooms, timeslots);
-  let currentFitness = evaluateFitness(currentSolution, courses, rooms, timeslots, config);
+  let currentSolution = generateRandomTimetable(
+    courses,
+    availableRooms,
+    timeslots,
+  );
+  let currentFitness = evaluateFitness(
+    currentSolution,
+    courses,
+    rooms,
+    timeslots,
+    config,
+  );
 
   let bestSolution = currentSolution;
   let bestFitness = currentFitness;
@@ -54,8 +86,18 @@ export function runSimulatedAnnealing(
   let temperature = initialTemperature;
 
   for (let i = 0; i < iterations; i++) {
-    const neighborSolution = generateNeighbor(currentSolution, availableRooms, timeslots);
-    const neighborFitness = evaluateFitness(neighborSolution, courses, rooms, timeslots, config);
+    const neighborSolution = generateNeighbor(
+      currentSolution,
+      availableRooms,
+      timeslots,
+    );
+    const neighborFitness = evaluateFitness(
+      neighborSolution,
+      courses,
+      rooms,
+      timeslots,
+      config,
+    );
 
     // Calculate the change in fitness
     const delta = neighborFitness - currentFitness;
