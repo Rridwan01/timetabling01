@@ -10,7 +10,7 @@ const CourseManagementTable = () => {
   const [error, setError] = useState("");
 
   // Get token helper
-  const getToken = () => localStorage.getItem("token");
+  const getToken = () => localStorage.getItem("token"); 
 
   // 1. DEFINE THE FUNCTION FIRST (Wrapped in useCallback)
   const fetchCourses = useCallback(async () => {
