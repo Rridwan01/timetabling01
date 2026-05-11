@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { TimetableViewWrap } from "./TimetableViewScreen.styles";
 import { MdPictureAsPdf, MdGridOn } from "react-icons/md";
 import jsPDF from "jspdf";
@@ -107,7 +107,7 @@ const exportPDF = () => {
       alternateRowStyles: { fillColor: [244, 247, 254] },
     });
 
-    doc.save("LCU_Exam_Timetable.pdf");
+    doc.save(`LCU_Exam_Timetable_${new Date().toLocaleDateString()}.pdf`);
   };
 
   return (

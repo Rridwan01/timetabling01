@@ -55,6 +55,7 @@ export function runSimulatedAnnealing(
   courses: Course[],
   rooms: Room[],
   timeslots: Timeslot[],
+  initialTimetable?: Timetable // NEW: Make it accept an initial timetable
 ): Timetable {
   // Map UI inputs to SA parameters
   const iterations = config.algorithm_tuning?.generations || 5000;
@@ -66,8 +67,8 @@ export function runSimulatedAnnealing(
 
   const availableRooms = rooms.filter((r) => r.availability === "Available");
 
-  // Generate initial solution
-  let currentSolution = generateRandomTimetable(
+  // NEW: Use the provided timetable (from GA) OR generate a random one if running standalone SA
+  let currentSolution = initialTimetable || generateRandomTimetable(
     courses,
     availableRooms,
     timeslots,
