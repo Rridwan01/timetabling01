@@ -39,6 +39,7 @@ export function evaluateFitness(
   const courseCapacityMap = new Map<string, { totalStudents: number, assignedCapacity: number, roomCount: number }>();
   const courseTimeslotTracker = new Map<number, Set<number>>();
   const roomUsageCount = new Map<number, number>();
+  const courseRoomTimeslots = new Map<string, Set<number>>();
 
   for (const assignment of timetable.assignments) {
     const course = courseMap.get(assignment.courseId);
@@ -60,8 +61,8 @@ export function evaluateFitness(
 
     roomUsageCount.set(room.id, (roomUsageCount.get(room.id) || 0) + 1);
 
-    const roomTimeKey = `${room.id}-${timeslot.id}`;
-    roomTimeslotMap.set(roomTimeKey, (roomTimeslotMap.get(roomTimeKey) || 0) + 1);
+    const roomTimeKey = `${room.id}-${timeslot.id}-${assignment.courseId}`;
+    roomTimeslotMap.set(roomTimeKey, 1); // Just mark it, don't count duplicates
 
     if (room.availability === 'Maintenance') penalty += HARD_PENALTY;
 

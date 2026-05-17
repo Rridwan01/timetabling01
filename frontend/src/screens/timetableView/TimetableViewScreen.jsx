@@ -43,6 +43,24 @@ const TimetableViewScreen = () => {
     };
 
     loadTimetable();
+
+        const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadTimetable();
+      }
+    };
+
+    const handleStorageChange = () => {
+      loadTimetable();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const handleExportCSV = () => {

@@ -10,10 +10,8 @@ export function runSimulatedAnnealing(
   initialTimetable?: Timetable
 ): Timetable {
   
-  // THE FIX: SA needs volume! Multiply generations by 20 so it evaluates enough schedules to compete with GA.
   const iterations = (config.algorithm_tuning?.generations || 1000) * 20;
   
-  // Calibrated for percentage-based fitness (0 to 100)
   let initialTemperature = 2.0; 
   let coolingRate = 0.999; 
 
@@ -34,22 +32,28 @@ export function runSimulatedAnnealing(
     
     if (neighborSolution.assignments.length === 0) break;
 
-    // THE FIX: "Gentle" Micro-Mutations instead of violent scrambling
-    const mutationType = Math.random();
+    const numPerturbations = Math.floor(Math.random() * 3) + 1; 
 
-    if (mutationType < 0.5) {
-        // Tweak 1: Change ONLY the room of a single split segment (Fixes Capacity/Double Booking)
-        const randomIdx = Math.floor(Math.random() * neighborSolution.assignments.length);
-        const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
-        neighborSolution.assignments[randomIdx].roomId = randomRoom.id;
-    } else {
-        // Tweak 2: Change ONLY the timeslot of a course, keeping it in the same rooms (Fixes Student Clashes)
-        const randomCourseId = neighborSolution.assignments[Math.floor(Math.random() * neighborSolution.assignments.length)].courseId;
-        const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
-        
-        for (let j = 0; j < neighborSolution.assignments.length; j++) {
-            if (neighborSolution.assignments[j].courseId === randomCourseId) {
-                neighborSolution.assignments[j].timeslotId = randomTimeslot.id;
+    for (let p = 0; p < numPerturbations; p++) {
+        const mutationType = Math.random();
+
+        if (mutationType < 0.5) {
+            // Room change
+            const randomIdx = Math.floor(Math.random() * neighborSolution.assignments.length);
+            const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
+            neighborSolution.assignments[randomIdx].roomId = randomRoom.id;
+        } else {
+            // Timeslot change
+            const randomCourseId = neighborSolution.assignments[Math.floor(Math.random() * neighborSolution.assignments.length)].courseId;
+            
+            // FIX 1: Timeslot selection moved strictly inside the perturbation loop
+            // Each modified course now gets its own independent random timeslot
+            const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
+            
+            for (let j = 0; j < neighborSolution.assignments.length; j++) {
+                if (neighborSolution.assignments[j].courseId === randomCourseId) {
+                    neighborSolution.assignments[j].timeslotId = randomTimeslot.id;
+                }
             }
         }
     }
@@ -57,7 +61,21 @@ export function runSimulatedAnnealing(
     const neighborFitness = evaluateFitness(neighborSolution, courses, rooms, timeslots, config);
     const delta = neighborFitness - currentFitness;
 
-    if (delta > 0 || Math.random() < Math.exp(delta / temperature)) {
+    // FIX 2: Clash Prevention Logic (The Safety Floor)
+    let accept = false;
+    
+    if (delta > 0) {
+        // Always accept if the schedule is improving
+        accept = true; 
+    } else if (neighborFitness >= 50) {
+        // SA won't accept backward moves if the fitness is below 50 (indicating severe hard clashes)
+        // It will only explore worse options if the schedule is already relatively stable
+        if (Math.random() < Math.exp(Math.max(-50, delta / Math.max(temperature, 0.01)))) {
+            accept = true;
+        }
+    }
+
+    if (accept) {
       currentSolution = neighborSolution;
       currentFitness = neighborFitness;
 
