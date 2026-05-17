@@ -13,7 +13,6 @@ export function evaluateFitness(
   config: TimetableConfig 
 ): number {
   
-  // The Ultimate Safety Shield
   if (!timetable || !timetable.assignments || timetable.assignments.length === 0) {
     return 0; 
   }
@@ -26,16 +25,20 @@ export function evaluateFitness(
   }
 
   let penalty = 0;
-  const BASE_SCORE = 10000; 
-  const HARD_PENALTY = 50000; // Increased to strongly discourage clashes!
+  
+  // Massive base score so the algorithm can "feel" the difference between 5 clashes and 1 clash
+  const BASE_SCORE = 1000000; 
+  const HARD_PENALTY = 10000; 
 
   const roomTimeslotMap = new Map<string, number>(); 
   const levelTimeslotMap = new Map<string, number>(); 
   const examinerTimeslotMap = new Map<string, number>(); 
-  const levelDateMap = new Map<string, Set<number>>(); // Uses Set to track unique courses
+  const levelDateMap = new Map<string, Set<number>>(); 
+  const levelDates = new Map<string, Set<string>>();
 
-  const courseCapacityMap = new Map<string, { totalStudents: number, assignedCapacity: number }>();
+  const courseCapacityMap = new Map<string, { totalStudents: number, assignedCapacity: number, roomCount: number }>();
   const courseTimeslotTracker = new Map<number, Set<number>>();
+  const roomUsageCount = new Map<number, number>();
 
   for (const assignment of timetable.assignments) {
     const course = courseMap.get(assignment.courseId);
@@ -49,9 +52,13 @@ export function evaluateFitness(
 
     const capacityKey = `${course.id}-${timeslot.id}`;
     if (!courseCapacityMap.has(capacityKey)) {
-      courseCapacityMap.set(capacityKey, { totalStudents: course.numStudents, assignedCapacity: 0 });
+      courseCapacityMap.set(capacityKey, { totalStudents: course.numStudents, assignedCapacity: 0, roomCount: 0 });
     }
-    courseCapacityMap.get(capacityKey)!.assignedCapacity += room.capacity;
+    const capData = courseCapacityMap.get(capacityKey)!;
+    capData.assignedCapacity += room.capacity;
+    capData.roomCount += 1;
+
+    roomUsageCount.set(room.id, (roomUsageCount.get(room.id) || 0) + 1);
 
     const roomTimeKey = `${room.id}-${timeslot.id}`;
     roomTimeslotMap.set(roomTimeKey, (roomTimeslotMap.get(roomTimeKey) || 0) + 1);
@@ -71,6 +78,9 @@ export function evaluateFitness(
     const levelDateKey = `${course.level}-${timeslot.date}`;
     if (!levelDateMap.has(levelDateKey)) levelDateMap.set(levelDateKey, new Set());
     levelDateMap.get(levelDateKey)!.add(course.id);
+
+    if (!levelDates.has(course.level)) levelDates.set(course.level, new Set());
+    levelDates.get(course.level)!.add(timeslot.date);
   }
 
   for (const timeslots of courseTimeslotTracker.values()) {
@@ -84,10 +94,19 @@ export function evaluateFitness(
       } else {
         const excessSpace = data.assignedCapacity - data.totalStudents;
         if (excessSpace > 50) { 
-           penalty += (excessSpace * (config.soft_constraints.roomUtilization || 1));
+           penalty += (excessSpace * (config.soft_constraints.roomUtilization || 1) * 2);
         }
       }
+      // Penalize fragmentation: unnecessary distribution across multiple halls
+      if (data.roomCount > 1) {
+         penalty += (data.roomCount * 100 * (config.soft_constraints.roomUtilization || 1));
+      }
     }
+  }
+
+  // Penalize uneven venue utilization (balances out how often each room is used)
+  for (const count of roomUsageCount.values()) {
+    penalty += (count * count * 5 * (config.soft_constraints.roomUtilization || 1));
   }
 
   for (const count of roomTimeslotMap.values()) {
@@ -106,10 +125,22 @@ export function evaluateFitness(
     }
   }
 
+  // Penalize cognitive load: multiple exams per day
   for (const uniqueCourses of levelDateMap.values()) {
     const count = uniqueCourses.size;
     if (count > (config.soft_constraints.dailyLimit || 2)) {
-      penalty += ((count - (config.soft_constraints.dailyLimit || 2)) * (config.soft_constraints.examSpread || 5) * 150);
+      penalty += ((count - (config.soft_constraints.dailyLimit || 2)) * (config.soft_constraints.examSpread || 5) * 100);
+    }
+  }
+
+  // Penalize cognitive load: consecutive days spacing
+  for (const dates of levelDates.values()) {
+    const sortedDates = Array.from(dates).map(d => new Date(d).getTime()).sort((a,b) => a - b);
+    for (let i = 1; i < sortedDates.length; i++) {
+       const diffDays = Math.round((sortedDates[i] - sortedDates[i-1]) / (1000 * 60 * 60 * 24));
+       if (diffDays === 1) { // Consecutive days
+          penalty += ((config.soft_constraints.examSpread || 5) * 50); 
+       }
     }
   }
 

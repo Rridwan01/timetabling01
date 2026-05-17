@@ -60,7 +60,7 @@ const TimetableViewScreen = () => {
           scheduleData[date][session].forEach(exam => {
             const safeTitle = `"${exam.courseTitle.replace(/"/g, '""')}"`;
             const safeLecturer = `"${exam.lecturer.replace(/"/g, '""')}"`;
-            const row = `"${prettyDate}","${exam.timeString}","${session}","${exam.courseCode}",${safeTitle},"${exam.level}","${exam.numStudents}","${exam.roomName}",${safeLecturer}`;
+            const row = `"${prettyDate}","${exam.timeString}","${session}","${exam.courseCode}",${safeTitle},"${exam.level}","${exam.assignedStudents}","${exam.roomName}",${safeLecturer}`;
             csvContent += row + "\n";
           });
         }
@@ -109,7 +109,7 @@ const TimetableViewScreen = () => {
           const tableData = scheduleData[date][session].map(exam => [
             `${exam.courseCode}\n(${exam.level})`,
             exam.timeString,
-            exam.numStudents,
+            exam.assignedStudents,
             exam.roomName,
             exam.lecturer
           ]);
@@ -207,7 +207,7 @@ const TimetableViewScreen = () => {
                               {exam.courseCode} <br/><span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 'normal' }}>{exam.courseTitle}</span>
                             </td>
                             <td style={{ padding: '12px', color: '#475569' }}>{exam.level}</td>
-                            <td style={{ padding: '12px', color: '#475569' }}>{exam.numStudents}</td>
+                            <td style={{ padding: '12px', color: '#475569' }}>{exam.assignedStudents}</td>
                             <td style={{ padding: '12px', color: '#475569', fontWeight: '500' }}>{exam.roomName}</td>
                             <td style={{ padding: '12px', color: '#475569' }}>{exam.lecturer}</td>
                           </tr>

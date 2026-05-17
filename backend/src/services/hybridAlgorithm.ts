@@ -9,32 +9,25 @@ export function runHybridAlgorithm(
   timeslots: Timeslot[]
 ): Timetable {
   
-  const totalGenerations = config.algorithm_tuning?.generations || 1000;
+  console.log("Starting Hybrid Phase 1: Global Search (Genetic Algorithm)...");
   
-  // ISSUE 3 FIX: Adaptive Engine Split
-  // Massive datasets require more Global Search (GA) to find valid regions
-  const gaRatio = courses.length > 30 ? 0.7 : 0.5;
-  
-  const gaConfig: TimetableConfig = {
-    ...config,
-    algorithm_tuning: {
-      ...config.algorithm_tuning,
-      generations: Math.floor(totalGenerations * gaRatio)
-    }
-  };
+  // 1. Let GA do its full job to find the best global structure
+  const gaBestSolution = runGeneticAlgorithm(config, courses, rooms, timeslots);
 
-  const gaBestSolution = runGeneticAlgorithm(gaConfig, courses, rooms, timeslots);
-
-  // ISSUE 4 FIX: State Validation (Prevent SA Cascade Failure)
   if (!gaBestSolution || !gaBestSolution.assignments || gaBestSolution.assignments.length === 0) {
-      throw new Error("Hybrid Phase 1 (GA) collapsed and failed to produce a valid state. Aborting SA.");
+      throw new Error("Hybrid Phase 1 (GA) collapsed and failed to produce a valid state.");
   }
 
+  console.log("Starting Hybrid Phase 2: Local Refinement (Simulated Annealing)...");
+
+  // 2. We pass the GA's best solution directly into SA. 
+  // SA will use its micro-mutations to polish off any remaining hard clashes.
+  // We lower the SA iterations slightly for Hybrid so it doesn't take too long.
   const saConfig: TimetableConfig = {
     ...config,
     algorithm_tuning: {
       ...config.algorithm_tuning,
-      generations: Math.floor(totalGenerations * (1 - gaRatio))
+      generations: Math.floor((config.algorithm_tuning?.generations || 1000) * 0.5) 
     }
   };
 

@@ -46,10 +46,20 @@ export const generateTimetable = async (req: Request, res: Response) => {
     const fitnessPercentage = evaluateFitness(bestTimetable, courses, rooms, timeslots, config);
 
     // 2. Hydration (Formatting the names and raw dates)
+    const courseStudentTracker = new Map<number, number>();
+
     const hydratedTimetable = bestTimetable.assignments.map((assignment) => {
       const course = courses.find((c) => c.id === assignment.courseId);
       const room = rooms.find((r) => r.id === assignment.roomId);
       const timeslot = timeslots.find((t) => t.id === assignment.timeslotId);
+
+      if (!courseStudentTracker.has(assignment.courseId)) {
+        courseStudentTracker.set(assignment.courseId, course.numStudents);
+      }
+
+      const remainingStudents = courseStudentTracker.get(assignment.courseId)!;
+      const allocatedStudents = Math.min(remainingStudents, room.capacity);
+      courseStudentTracker.set(assignment.courseId, remainingStudents - allocatedStudents);
 
       return {
         id: `${assignment.courseId}-${assignment.roomId}-${assignment.timeslotId}`, 
@@ -58,6 +68,7 @@ export const generateTimetable = async (req: Request, res: Response) => {
         level: course.level,
         lecturer: course.lecturer,
         numStudents: course.numStudents,
+        assignedStudents: allocatedStudents, // Actual student count in this room
         roomName: room.name,
         date: timeslot.date, // Raw date to prevent frontend sorting crashes!
         timeslotLabel: timeslot.label,
