@@ -94,6 +94,6 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Insert a default admin account (Password is 'admin123')
 -- Note: In a real production app, never hardcode passwords like this!
-INSERT INTO users (username, password_hash, role) 
-VALUES ('admin', '$2a$10$w.V/a4W15lB6A4bJ6/7Y/.hJ1q.N3.M.t.R/8eH.t.H.t.H.t.H.t.', 'admin')
+INSERT INTO admins (username, password_hash)
+VALUES ('admin', '$2a$10$w.V/a4W15lB6A4bJ6/7Y/.hJ1q.N3.M.t.R/8eH.t.H.t.H.t.H.t.')
 ON CONFLICT (username) DO NOTHING;

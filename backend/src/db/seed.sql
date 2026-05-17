@@ -1,8 +1,8 @@
 -- Clear existing data to prevent duplicate errors during testing
 TRUNCATE TABLE assignments, algorithm_metrics, timetable_runs, run_configs, courses, rooms, timeslots, admins RESTART IDENTITY CASCADE;
 
--- 1. Insert System Admin (DO NOT REMOVE THIS OR YOU CANT LOG IN)
-INSERT INTO admins (username, password_hash) VALUES ('admin', 'hashed_password_placeholder');
+-- 1. Insert System Admin (DO NOT REMOVE THIS OR YOU CAN'T LOG IN)
+INSERT INTO admins (username, password_hash) VALUES ('admin', '$2a$10$w.V/a4W15lB6A4bJ6/7Y/.hJ1q.N3.M.t.R/8eH.t.H.t.H.t.H.t.');
 
 -- 2. Expand Rooms (8 Halls from massive to small)
 INSERT INTO rooms (name, capacity, availability) VALUES

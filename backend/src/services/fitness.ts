@@ -13,6 +13,11 @@ export function evaluateFitness(
   config: TimetableConfig 
 ): number {
   
+  // The Ultimate Safety Shield
+  if (!timetable || !timetable.assignments || timetable.assignments.length === 0) {
+    return 0; 
+  }
+  
   if (courses.length !== cachedCoursesLength) {
     courseMap = new Map<number, Course>(courses.map((c) => [c.id, c]));
     roomMap = new Map<number, Room>(rooms.map((r) => [r.id, r]));
@@ -22,14 +27,13 @@ export function evaluateFitness(
 
   let penalty = 0;
   const BASE_SCORE = 10000; 
-  const HARD_PENALTY = 5000; 
+  const HARD_PENALTY = 50000; // Increased to strongly discourage clashes!
 
   const roomTimeslotMap = new Map<string, number>(); 
   const levelTimeslotMap = new Map<string, number>(); 
   const examinerTimeslotMap = new Map<string, number>(); 
-  const levelDateMap = new Map<string, number>(); 
+  const levelDateMap = new Map<string, Set<number>>(); // Uses Set to track unique courses
 
-  // --- NEW: Tracking for Course Splitting ---
   const courseCapacityMap = new Map<string, { totalStudents: number, assignedCapacity: number }>();
   const courseTimeslotTracker = new Map<number, Set<number>>();
 
@@ -40,18 +44,15 @@ export function evaluateFitness(
 
     if (!course || !room || !timeslot) continue;
 
-    // 1. Ensure the exam is not scheduled on multiple different days/times
     if (!courseTimeslotTracker.has(course.id)) courseTimeslotTracker.set(course.id, new Set());
     courseTimeslotTracker.get(course.id)!.add(timeslot.id);
 
-    // 2. Group room capacities together for the same course and timeslot
     const capacityKey = `${course.id}-${timeslot.id}`;
     if (!courseCapacityMap.has(capacityKey)) {
       courseCapacityMap.set(capacityKey, { totalStudents: course.numStudents, assignedCapacity: 0 });
     }
     courseCapacityMap.get(capacityKey)!.assignedCapacity += room.capacity;
 
-    // 3. Normal Constraints
     const roomTimeKey = `${room.id}-${timeslot.id}`;
     roomTimeslotMap.set(roomTimeKey, (roomTimeslotMap.get(roomTimeKey) || 0) + 1);
 
@@ -68,48 +69,47 @@ export function evaluateFitness(
     }
 
     const levelDateKey = `${course.level}-${timeslot.date}`;
-    levelDateMap.set(levelDateKey, (levelDateMap.get(levelDateKey) || 0) + 1);
+    if (!levelDateMap.has(levelDateKey)) levelDateMap.set(levelDateKey, new Set());
+    levelDateMap.get(levelDateKey)!.add(course.id);
   }
 
-  // --- APPLY PENALTIES ---
-
-  // EXTREME PENALTY: Exam split across multiple timeslots
   for (const timeslots of courseTimeslotTracker.values()) {
     if (timeslots.size > 1) penalty += (HARD_PENALTY * 2); 
   }
 
-  // HARD PENALTY: Capacity Check (Now correctly adds up multiple rooms!)
   if (config.hard_constraints.roomCapacity) {
     for (const data of courseCapacityMap.values()) {
       if (data.totalStudents > data.assignedCapacity) {
         penalty += HARD_PENALTY;
+      } else {
+        const excessSpace = data.assignedCapacity - data.totalStudents;
+        if (excessSpace > 50) { 
+           penalty += (excessSpace * (config.soft_constraints.roomUtilization || 1));
+        }
       }
     }
   }
 
-  // Double-booked rooms
   for (const count of roomTimeslotMap.values()) {
     if (count > 1) penalty += ((count - 1) * HARD_PENALTY);
   }
 
-  // Student level clashes
   if (config.hard_constraints.studentClash) {
     for (const count of levelTimeslotMap.values()) {
       if (count > 1) penalty += ((count - 1) * HARD_PENALTY);
     }
   }
 
-  // Chief Examiner clashes
   if (config.hard_constraints.chiefExaminerClash) {
     for (const count of examinerTimeslotMap.values()) {
       if (count > 1) penalty += ((count - 1) * HARD_PENALTY);
     }
   }
 
-  // Soft Penalty: Exam spread
-  for (const count of levelDateMap.values()) {
-    if (count > config.soft_constraints.dailyLimit) {
-      penalty += ((count - config.soft_constraints.dailyLimit) * config.soft_constraints.examSpread * 50);
+  for (const uniqueCourses of levelDateMap.values()) {
+    const count = uniqueCourses.size;
+    if (count > (config.soft_constraints.dailyLimit || 2)) {
+      penalty += ((count - (config.soft_constraints.dailyLimit || 2)) * (config.soft_constraints.examSpread || 5) * 150);
     }
   }
 

@@ -9,28 +9,32 @@ export function runHybridAlgorithm(
   timeslots: Timeslot[]
 ): Timetable {
   
-  // 1. Phase One: Global Search (Genetic Algorithm)
-  // We reduce the GA generations slightly so the hybrid approach doesn't take twice as long to run.
+  // PHASE 1: Global Search (Genetic Algorithm)
+  // Give GA 60% of the total generations to find a solid foundational timetable
+  const gaGenerations = Math.floor((config.algorithm_tuning?.generations || 2000) * 0.6);
   const gaConfig: TimetableConfig = {
     ...config,
     algorithm_tuning: {
       ...config.algorithm_tuning,
-      generations: Math.floor((config.algorithm_tuning?.generations || 1000) * 0.6) // Run GA for 60% of the time
+      generations: gaGenerations
     }
   };
 
+  console.log(`Starting Phase 1: GA with ${gaGenerations} generations...`);
   const gaBestSolution = runGeneticAlgorithm(gaConfig, courses, rooms, timeslots);
 
-  // 2. Phase Two: Local Refinement (Simulated Annealing)
-  // We feed the GA's best solution directly into SA to polish off any remaining hard constraint clashes.
+  // PHASE 2: Local Refinement (Simulated Annealing)
+  // Give SA the remaining 40% of generations, feeding it the GA's best result
+  const saGenerations = Math.floor((config.algorithm_tuning?.generations || 2000) * 0.4);
   const saConfig: TimetableConfig = {
     ...config,
     algorithm_tuning: {
       ...config.algorithm_tuning,
-      generations: Math.floor((config.algorithm_tuning?.generations || 5000) * 0.4) // Run SA for the remaining 40%
+      generations: saGenerations
     }
   };
 
+  console.log(`Starting Phase 2: SA with ${saGenerations} generations for refinement...`);
   const finalHybridSolution = runSimulatedAnnealing(saConfig, courses, rooms, timeslots, gaBestSolution);
 
   return finalHybridSolution;
