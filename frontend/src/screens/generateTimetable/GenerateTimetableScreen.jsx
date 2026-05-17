@@ -82,6 +82,12 @@ const GenerateTimetableScreen = () => {
   };
 
   const handleStart = async () => {
+
+    localStorage.removeItem("generated_timetable");
+    localStorage.removeItem("timetable_timeslots");
+
+    let engineName = algorithm;
+    
     setLogs([
       {
         type: "info",
@@ -228,9 +234,9 @@ const GenerateTimetableScreen = () => {
               onChange={(e) => setAlgorithm(e.target.value)}
               disabled={isRunning}
             >
-              <option value="GA">Genetic Algorithm (GA)</option>
-              <option value="SA">Simulated Annealing (SA)</option>
-              <option value="Compare">Compare Both (Benchmark)</option>
+              <option value="Genetic Algorithm">Genetic Algorithm (GA)</option>
+              <option value="Simulated Annealing">Simulated Annealing (SA)</option>
+              <option value="Hybrid GA-SA">Hybrid Model (GA + SA)</option>
             </select>
           </div>
 
