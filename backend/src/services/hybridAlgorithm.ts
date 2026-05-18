@@ -1,5 +1,4 @@
-// backend/src/services/hybridAlgorithm.ts
-import { Timetable, Course, Room, Timeslot, TimetableConfig, ExamAssignment } from "../models/timetable";
+import { Timetable, Course, Room, Timeslot, TimetableConfig, ExamAssignment, ConflictMatrix } from "../models/timetable";
 import { evaluateFitness } from "./fitness";
 import { generateRandomTimetable } from "./population";
 import { runSimulatedAnnealing, cloneTimetable } from "./simulatedAnnealing";
@@ -8,7 +7,8 @@ export function runHybridAlgorithm(
   config: TimetableConfig,
   courses: Course[],
   rooms: Room[],
-  timeslots: Timeslot[]
+  timeslots: Timeslot[],
+  conflictMatrix: ConflictMatrix // <--- 5th Argument Added
 ): Timetable {
   
   console.log("Starting Memetic Hybrid Algorithm (GA + SA Local Search)...");
@@ -25,46 +25,36 @@ export function runHybridAlgorithm(
       throw new Error("Insufficient data for Hybrid Phase.");
   }
 
-  // 1. Initialization
   let population: Timetable[] = [];
   for (let i = 0; i < popSize; i++) {
     population.push(generateRandomTimetable(courses, availableRooms, timeslots));
   }
 
   let bestTimetable = cloneTimetable(population[0]);
-  let bestFitness = evaluateFitness(bestTimetable, courses, rooms, timeslots, config);
+  let bestFitness = evaluateFitness(bestTimetable, courses, rooms, timeslots, config, conflictMatrix);
 
-  // 2. Evolution Loop
   for (let generation = 0; generation < generations; generation++) {
     
-    // Score & Sort
     const scoredPopulation = population
       .map((timetable) => ({
         timetable,
-        fitness: evaluateFitness(timetable, courses, rooms, timeslots, config)
+        fitness: evaluateFitness(timetable, courses, rooms, timeslots, config, conflictMatrix)
       }))
       .sort((a, b) => b.fitness - a.fitness);
 
-    // ============================================================================
-    // THE MEMETIC INTERJECTION
-    // Every 50 generations, use SA as a Local Search to aggressively polish 
-    // the top 2 elite chromosomes before passing them to the next generation.
-    // ============================================================================
     if (generation > 0 && generation % 50 === 0) {
       console.log(`Generation ${generation}: Triggering SA Local Search on Elites...`);
       const elitismCount = Math.min(2, scoredPopulation.length);
       
       for (let i = 0; i < elitismCount; i++) {
-        // Run a short, intense SA burst (500 iterations)
-        const polishedElite = runSimulatedAnnealing(config, courses, rooms, timeslots, scoredPopulation[i].timetable, 500);
+        // Pass the conflict matrix as the 7th parameter here
+        const polishedElite = runSimulatedAnnealing(config, courses, rooms, timeslots, scoredPopulation[i].timetable, 500, conflictMatrix);
         scoredPopulation[i].timetable = polishedElite;
-        scoredPopulation[i].fitness = evaluateFitness(polishedElite, courses, rooms, timeslots, config);
+        scoredPopulation[i].fitness = evaluateFitness(polishedElite, courses, rooms, timeslots, config, conflictMatrix);
       }
-      // Re-sort in case the polished elites drastically improved
       scoredPopulation.sort((a, b) => b.fitness - a.fitness);
     }
 
-    // Track Global Best
     if (scoredPopulation[0].fitness > bestFitness) {
       bestFitness = scoredPopulation[0].fitness;
       bestTimetable = cloneTimetable(scoredPopulation[0].timetable);
@@ -72,13 +62,11 @@ export function runHybridAlgorithm(
 
     const newPopulation: Timetable[] = [];
     
-    // Elitism
     const elitismCount = Math.min(2, scoredPopulation.length);
     for (let i = 0; i < elitismCount; i++) {
       newPopulation.push(cloneTimetable(scoredPopulation[i].timetable));
     }
 
-    // Breed remainder
     while (newPopulation.length < popSize) {
       const getParent = () => {
           const p1 = scoredPopulation[Math.floor(Math.random() * scoredPopulation.length)];
@@ -89,7 +77,6 @@ export function runHybridAlgorithm(
       const parent1 = getParent();
       const parent2 = getParent();
 
-      // Whole-Course Uniform Crossover
       const childAssignments: Record<number, ExamAssignment[]> = {};
       for (const course of courses) {
         const inheritFromP1 = Math.random() > 0.5;
@@ -99,7 +86,6 @@ export function runHybridAlgorithm(
       
       const child: Timetable = { courseAssignments: childAssignments };
       
-      // Course-Level Mutation
       if (Math.random() < mutationRate) {
         const randomCourse = courses[Math.floor(Math.random() * courses.length)];
         const targetAssignments = child.courseAssignments[randomCourse.id];

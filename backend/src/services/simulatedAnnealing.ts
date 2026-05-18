@@ -1,9 +1,7 @@
-// backend/src/services/simulatedAnnealing.ts
-import { Timetable, Course, Room, Timeslot, TimetableConfig, ExamAssignment } from "../models/timetable";
+import { Timetable, Course, Room, Timeslot, TimetableConfig, ExamAssignment, ConflictMatrix } from "../models/timetable";
 import { evaluateFitness } from "./fitness";
 import { generateRandomTimetable } from "./population";
 
-// Fast clone helper
 export function cloneTimetable(timetable: Timetable): Timetable {
   const cloned: Record<number, ExamAssignment[]> = {};
   for (const courseId in timetable.courseAssignments) {
@@ -18,8 +16,8 @@ export function runSimulatedAnnealing(
   rooms: Room[],
   timeslots: Timeslot[],
   initialTimetable?: Timetable,
-  conflictMatrix: ConflictMatrix,
-  customIterations?: number // Added for Memetic short-bursts
+  customIterations?: number,
+  conflictMatrix?: ConflictMatrix // <--- 7th Argument Added
 ): Timetable {
   
   const iterations = customIterations || (config.algorithm_tuning?.generations || 1000) * 20;
@@ -31,8 +29,10 @@ export function runSimulatedAnnealing(
       throw new Error("Insufficient data for SA.");
   }
 
+  const safeMatrix = conflictMatrix || {}; // Fallback if undefined
+
   let currentSolution = initialTimetable ? cloneTimetable(initialTimetable) : generateRandomTimetable(courses, availableRooms, timeslots);
-  let currentFitness = evaluateFitness(currentSolution, courses, rooms, timeslots, config, conflictMatrix);
+  let currentFitness = evaluateFitness(currentSolution, courses, rooms, timeslots, config, safeMatrix);
 
   let bestSolution = cloneTimetable(currentSolution);
   let bestFitness = currentFitness;
@@ -51,12 +51,10 @@ export function runSimulatedAnnealing(
         const courseSchedule = neighborSolution.courseAssignments[randomCourseId];
 
         if (Math.random() < 0.5) {
-            // Room Mutator: Change the room of ONE segment, ensuring it doesn't break atomic bounds
             const randomIdx = Math.floor(Math.random() * courseSchedule.length);
             const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
             courseSchedule[randomIdx].roomId = randomRoom.id;
         } else {
-            // Timeslot Mutator: Move the ENTIRE course to a new timeslot
             const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
             for (const segment of courseSchedule) {
                 segment.timeslotId = randomTimeslot.id;
@@ -64,22 +62,17 @@ export function runSimulatedAnnealing(
         }
     }
 
-    const neighborFitness = evaluateFitness(neighborSolution, courses, rooms, timeslots, config, conflictMatrix);
+    const neighborFitness = evaluateFitness(neighborSolution, courses, rooms, timeslots, config, safeMatrix);
     const delta = neighborFitness - currentFitness;
 
-    // ============================================================================
-    // CRITICAL FIX: Standard Metropolis-Hastings Criterion
-    // Removed the arbitrary "50" floor. The probability of accepting a worse 
-    // solution is now purely a function of the temperature and how bad the move is.
-    // ============================================================================
     let accept = false;
     
     if (delta > 0) {
-        accept = true; // Always accept improvements
+        accept = true; 
     } else {
         const probability = Math.exp(delta / Math.max(temperature, 0.0001));
         if (Math.random() < probability) {
-            accept = true; // Accept worse solution to escape local optima
+            accept = true;
         }
     }
 
