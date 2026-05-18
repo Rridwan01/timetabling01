@@ -15,7 +15,7 @@ export function runGeneticAlgorithm(
   courses: Course[],
   rooms: Room[],
   timeslots: Timeslot[],
-  conflictMatrix: ConflictMatrix // <--- 5th Argument Added
+  conflictMatrix: ConflictMatrix 
 ): Timetable {
   
   const popSize = 100; 
@@ -37,14 +37,14 @@ export function runGeneticAlgorithm(
   }
 
   let bestTimetable = cloneTimetable(population[0]);
-  let bestFitness = evaluateFitness(bestTimetable, courses, rooms, timeslots, config, conflictMatrix); // <--- Matrix passed to fitness
+  let bestFitness = evaluateFitness(bestTimetable, courses, rooms, timeslots, config, conflictMatrix); 
 
   for (let generation = 0; generation < generations; generation++) {
     
     const scoredPopulation = population
       .map((timetable) => ({
         timetable,
-        fitness: evaluateFitness(timetable, courses, rooms, timeslots, config, conflictMatrix) // <--- Matrix passed to fitness
+        fitness: evaluateFitness(timetable, courses, rooms, timeslots, config, conflictMatrix)
       }))
       .sort((a, b) => b.fitness - a.fitness);
 
@@ -79,12 +79,36 @@ export function runGeneticAlgorithm(
       
       const child: Timetable = { courseAssignments: childAssignments };
       
+      // HYBRID MUTATION: 50% Time, 50% Venue
       if (Math.random() < mutationRate) {
         const randomCourse = courses[Math.floor(Math.random() * courses.length)];
-        const targetAssignments = child.courseAssignments[randomCourse.id];
-        const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
-        for (const assignment of targetAssignments) {
-            assignment.timeslotId = randomTimeslot.id;
+        
+        if (Math.random() < 0.5) {
+            // TIME MUTATION
+            const targetAssignments = child.courseAssignments[randomCourse.id];
+            const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
+            for (const assignment of targetAssignments) {
+                assignment.timeslotId = randomTimeslot.id;
+            }
+        } else {
+            // VENUE MUTATION: Repack the course into new rooms
+            const currentTimeslot = child.courseAssignments[randomCourse.id][0].timeslotId;
+            let unassigned = randomCourse.numStudents;
+            const newAssignments: ExamAssignment[] = [];
+            
+            // Randomize room order to explore new venue combinations
+            const shuffledRooms = [...availableRooms].sort(() => Math.random() - 0.5);
+            
+            for (const room of shuffledRooms) {
+                if (unassigned <= 0) break;
+                newAssignments.push({
+                    courseId: randomCourse.id,
+                    roomId: room.id,
+                    timeslotId: currentTimeslot
+                });
+                unassigned -= room.capacity;
+            }
+            child.courseAssignments[randomCourse.id] = newAssignments;
         }
       }
       

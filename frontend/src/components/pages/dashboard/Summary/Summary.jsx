@@ -56,25 +56,39 @@ const Summary = ({ onAuthError }) => {
     };
     fetchDashboardStats();
 
-    const savedTimetable = JSON.parse(
-      localStorage.getItem("generated_timetable"),
-    );
-    const savedConstraints = JSON.parse(
-      localStorage.getItem("timetable_constraints"),
-    );
+    // Safely parse LocalStorage to prevent JSON.parse("undefined") crashes
+    let savedTimetable = null;
+    let savedConstraints = null;
+
+    try {
+      const timetableStr = localStorage.getItem("generated_timetable");
+      const constraintsStr = localStorage.getItem("timetable_constraints");
+
+      if (timetableStr && timetableStr !== "undefined") {
+        savedTimetable = JSON.parse(timetableStr);
+      }
+      if (constraintsStr && constraintsStr !== "undefined") {
+        savedConstraints = JSON.parse(constraintsStr);
+      }
+    } catch (e) {
+      console.error("Error parsing timetable data from local storage:", e);
+    }
 
     if (savedTimetable) {
+      // Safely calculate constraints using Optional Chaining to prevent Object.values(undefined)
+      const numHardConstraints = savedConstraints?.hard_constraints 
+        ? Object.values(savedConstraints.hard_constraints).filter(Boolean).length 
+        : 0;
+
       setLastRunData({
         date: new Date(
           savedTimetable.generatedAt || Date.now(),
         ).toLocaleDateString(),
-        fitness: savedTimetable.fitnessScore
-          ? savedTimetable.fitnessScore.toFixed(1)
-          : "0.0",
-        activeConstraints: savedConstraints
-          ? Object.values(savedConstraints.hard_constraints).filter(Boolean)
-              .length + 3 // Assuming 3 soft constraints always active
-          : 0,
+        fitness:
+          savedTimetable.fitnessScore && typeof savedTimetable.fitnessScore === "number"
+            ? savedTimetable.fitnessScore.toFixed(1)
+            : "0.0",
+        activeConstraints: numHardConstraints > 0 ? numHardConstraints + 3 : 0, // Assuming 3 soft constraints
       });
     }
   }, [onAuthError]);
@@ -206,7 +220,6 @@ const Summary = ({ onAuthError }) => {
   );
 };
 
-// Moved propTypes declaration outside of the component body
 Summary.propTypes = {
   onAuthError: PropTypes.func,
 };

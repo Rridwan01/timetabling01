@@ -5,6 +5,7 @@ import { MdSettings, MdPlayArrow, MdStop, MdCheckCircle } from "react-icons/md";
 
 const GenerateTimetableScreen = () => {
   const navigate = useNavigate();
+  // Using short codes: "GA", "SA", "HYBRID"
   const [algorithm, setAlgorithm] = useState("GA");
 
   // Simulation States
@@ -76,23 +77,25 @@ const GenerateTimetableScreen = () => {
       "Calculating Energy Difference...",
     ];
 
-    const phrases = algo === "GA" ? gaPhrases : saPhrases;
+    const phrases = algo === "GA" || algo === "HYBRID" ? gaPhrases : saPhrases;
     const text = phrases[Math.floor(Math.random() * phrases.length)];
     return { type: "info", time, text };
   };
 
   const handleStart = async () => {
-
     localStorage.removeItem("generated_timetable");
     localStorage.removeItem("timetable_timeslots");
 
-    let engineName = algorithm;
-    
+    // Map the shortcode to the string expected by the backend
+    let engineName = "Genetic Algorithm";
+    if (algorithm === "SA") engineName = "Simulated Annealing";
+    if (algorithm === "HYBRID") engineName = "Hybrid Algorithm";
+
     setLogs([
       {
         type: "info",
         time: new Date().toLocaleTimeString(),
-        text: `Initializing ${algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing"} Engine...`,
+        text: `Initializing ${engineName} Engine...`,
       },
     ]);
     setProgress(0);
@@ -108,8 +111,7 @@ const GenerateTimetableScreen = () => {
       if (savedConfigString) {
         payload = JSON.parse(savedConfigString);
         // Override the engine with whatever they selected on THIS screen
-        payload.algorithm_tuning.engine =
-          algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing";
+        payload.algorithm_tuning.engine = engineName;
       } else {
         // Fallback default payload if they never visited the Constraints screen
         payload = {
@@ -124,15 +126,14 @@ const GenerateTimetableScreen = () => {
             roomUtilization: 3,
           },
           algorithm_tuning: {
-            engine:
-              algorithm === "GA" ? "Genetic Algorithm" : "Simulated Annealing",
+            engine: engineName,
             generations: 1000,
             mutationRate: "Medium",
           },
         };
       }
 
-      // Add VIP Auth Token (Required for your protected backend routes!)
+      // Add VIP Auth Token
       const token = localStorage.getItem("token");
 
       // 2. MAKE THE ACTUAL API CALL
@@ -142,7 +143,7 @@ const GenerateTimetableScreen = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`, // <-- ADDED THE TOKEN HERE
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(payload),
         },
@@ -160,10 +161,17 @@ const GenerateTimetableScreen = () => {
       setIsRunning(false);
       setIsCompleted(true);
 
+      // Defensively parse fitness to prevent NaN UI bugs
+      const rawFitness =
+        data.fitness ?? data.timetable?.fitnessScore ?? data.fitnessScore ?? 0;
+      const finalFitnessScore = isNaN(Number(rawFitness))
+        ? 0
+        : Number(rawFitness);
+
       setMetrics({
         iteration: data.iterationsRun || payload.algorithm_tuning.generations,
-        fitness: data.fitness,
-        clashes: data.fitness === 100 ? 0 : 1,
+        fitness: finalFitnessScore,
+        clashes: finalFitnessScore === 100 ? 0 : data.clashes || 1,
       });
 
       setLogs((prev) => [
@@ -234,13 +242,14 @@ const GenerateTimetableScreen = () => {
               onChange={(e) => setAlgorithm(e.target.value)}
               disabled={isRunning}
             >
-              <option value="Genetic Algorithm">Genetic Algorithm (GA)</option>
-              <option value="Simulated Annealing">Simulated Annealing (SA)</option>
-              <option value="Hybrid GA-SA">Hybrid Model (GA + SA)</option>
+              {/* FIXED: Values now match the short codes */}
+              <option value="GA">Genetic Algorithm (GA)</option>
+              <option value="SA">Simulated Annealing (SA)</option>
+              <option value="HYBRID">Hybrid Model (GA + SA)</option>
             </select>
           </div>
 
-          {algorithm === "GA" && (
+          {(algorithm === "GA" || algorithm === "HYBRID") && (
             <>
               <div className="form-group">
                 <label>Population Size</label>

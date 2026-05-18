@@ -1,14 +1,5 @@
-import {
-  Timetable,
-  Course,
-  Room,
-  Timeslot,
-  ExamAssignment,
-} from "../models/timetable";
+import { Timetable, Course, Room, Timeslot, ExamAssignment } from "../models/timetable";
 
-/**
- * Generates a random initial timetable using a Best Fit Decreasing heuristic.
- */
 export function generateRandomTimetable(
   courses: Course[],
   rooms: Room[],
@@ -17,30 +8,37 @@ export function generateRandomTimetable(
   const courseAssignments: Record<number, ExamAssignment[]> = {};
   const availableRooms = rooms.filter((r) => r.availability === "Available");
 
-  // Anti-Fragmentation: Sort rooms by capacity (largest first)
-  const sortedRooms = [...availableRooms].sort(
-    (a, b) => b.capacity - a.capacity,
-  );
-
   for (const course of courses) {
-    const randomTimeslot =
-      timeslots[Math.floor(Math.random() * timeslots.length)];
-    let unassignedStudents = course.numStudents;
+    const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
     const assignmentsForCourse: ExamAssignment[] = [];
+    
+    // Fallback to prevent NaN mathematics
+    let unassignedStudents = course.numStudents && course.numStudents > 0 ? course.numStudents : 30;
 
-    for (const room of sortedRooms) {
-      if (unassignedStudents <= 0) break; // Stop when everyone has a seat
-
+    const validRooms = availableRooms.filter(r => (r.capacity || 0) >= unassignedStudents);
+    
+    if (validRooms.length > 0) {
+      validRooms.sort((a, b) => (a.capacity || 0) - (b.capacity || 0));
       assignmentsForCourse.push({
         courseId: course.id,
-        roomId: room.id,
+        roomId: validRooms[0].id,
         timeslotId: randomTimeslot.id,
       });
-
-      unassignedStudents -= room.capacity;
+    } else {
+      const sortedRooms = [...availableRooms].sort((a, b) => (b.capacity || 0) - (a.capacity || 0));
+      const semiRandomRooms = sortedRooms.sort(() => Math.random() - 0.2); 
+      
+      for (const room of semiRandomRooms) {
+        if (unassignedStudents <= 0) break;
+        assignmentsForCourse.push({
+          courseId: course.id,
+          roomId: room.id,
+          timeslotId: randomTimeslot.id,
+        });
+        unassignedStudents -= (room.capacity || 30);
+      }
     }
-
-    // Assign the completed schedule block to the course
+    
     courseAssignments[course.id] = assignmentsForCourse;
   }
 

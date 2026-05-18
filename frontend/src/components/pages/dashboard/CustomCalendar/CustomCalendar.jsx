@@ -9,19 +9,40 @@ const CustomCalendar = () => {
   const [examDates, setExamDates] = useState(new Set());
 
   useEffect(() => {
-    // 1. Pull the saved timetable and timeslots from local storage
-    const savedTimetable = JSON.parse(
-      localStorage.getItem("generated_timetable"),
-    );
-    const savedTimeslots = JSON.parse(
-      localStorage.getItem("timetable_timeslots"),
-    );
+    let savedTimetable = null;
+    let savedTimeslots = null;
 
-    if (savedTimetable && savedTimeslots) {
+    // 1. Safely parse local storage to prevent JSON.parse("undefined") crashes
+    try {
+      const timetableStr = localStorage.getItem("generated_timetable");
+      const timeslotsStr = localStorage.getItem("timetable_timeslots");
+
+      if (timetableStr && timetableStr !== "undefined") {
+        savedTimetable = JSON.parse(timetableStr);
+      }
+      if (timeslotsStr && timeslotsStr !== "undefined") {
+        savedTimeslots = JSON.parse(timeslotsStr);
+      }
+    } catch (e) {
+      console.error("Error parsing calendar data from local storage:", e);
+    }
+
+    if (savedTimetable && Array.isArray(savedTimeslots)) {
       const datesWithExams = new Set();
 
-      // 2. Loop through assignments, find the matching timeslot, and extract the date
-      savedTimetable.assignments.forEach((assignment) => {
+      // 2. Safely extract assignments whether they are in an array or a Record object (Backend format)
+      let flatAssignments = [];
+
+      if (Array.isArray(savedTimetable.assignments)) {
+        // If frontend flattened it into an array
+        flatAssignments = savedTimetable.assignments;
+      } else if (savedTimetable.courseAssignments) {
+        // If it's still in the backend format: Record<number, ExamAssignment[]>
+        flatAssignments = Object.values(savedTimetable.courseAssignments).flat();
+      }
+
+      // 3. Safely loop through the confirmed array
+      flatAssignments.forEach((assignment) => {
         const slot = savedTimeslots.find((t) => t.id === assignment.timeslotId);
         if (slot && slot.date) {
           // Convert the ISO string to a standard date string for easy matching
@@ -33,8 +54,7 @@ const CustomCalendar = () => {
     }
   }, []);
 
-  // 3. This function runs for every tile on the calendar.
-  // If the date exists in our Set, it applies a custom CSS class.
+  // 4. This function runs for every tile on the calendar.
   const tileClassName = ({ date, view }) => {
     if (view === "month" && examDates.has(date.toDateString())) {
       return "highlight-exam-day";

@@ -17,7 +17,7 @@ export function runSimulatedAnnealing(
   timeslots: Timeslot[],
   initialTimetable?: Timetable,
   customIterations?: number,
-  conflictMatrix?: ConflictMatrix // <--- 7th Argument Added
+  conflictMatrix?: ConflictMatrix 
 ): Timetable {
   
   const iterations = customIterations || (config.algorithm_tuning?.generations || 1000) * 20;
@@ -29,7 +29,7 @@ export function runSimulatedAnnealing(
       throw new Error("Insufficient data for SA.");
   }
 
-  const safeMatrix = conflictMatrix || {}; // Fallback if undefined
+  const safeMatrix = conflictMatrix || {}; 
 
   let currentSolution = initialTimetable ? cloneTimetable(initialTimetable) : generateRandomTimetable(courses, availableRooms, timeslots);
   let currentFitness = evaluateFitness(currentSolution, courses, rooms, timeslots, config, safeMatrix);
@@ -48,16 +48,34 @@ export function runSimulatedAnnealing(
 
     for (let p = 0; p < numPerturbations; p++) {
         const randomCourseId = courseIds[Math.floor(Math.random() * courseIds.length)];
+        const course = courses.find(c => c.id === randomCourseId)!;
         const courseSchedule = neighborSolution.courseAssignments[randomCourseId];
 
-        if (Math.random() < 0.5) {
-            const randomIdx = Math.floor(Math.random() * courseSchedule.length);
-            const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
-            courseSchedule[randomIdx].roomId = randomRoom.id;
-        } else {
-            const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
-            for (const segment of courseSchedule) {
-                segment.timeslotId = randomTimeslot.id;
+        // FIXED: Safe array check to prevent TypeError
+        if (courseSchedule && courseSchedule.length > 0) {
+            if (Math.random() < 0.5) {
+                const currentTimeslotId = courseSchedule[0].timeslotId;
+                let unassigned = course.numStudents || 30;
+                const newAssignments: ExamAssignment[] = [];
+                
+                const shuffledRooms = [...availableRooms].sort(() => Math.random() - 0.5);
+                
+                for (const room of shuffledRooms) {
+                    if (unassigned <= 0) break;
+                    newAssignments.push({
+                        courseId: course.id,
+                        roomId: room.id,
+                        timeslotId: currentTimeslotId
+                    });
+                    unassigned -= (room.capacity || 30);
+                }
+                neighborSolution.courseAssignments[randomCourseId] = newAssignments;
+                
+            } else {
+                const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
+                for (const segment of courseSchedule) {
+                    segment.timeslotId = randomTimeslot.id;
+                }
             }
         }
     }
@@ -67,12 +85,14 @@ export function runSimulatedAnnealing(
 
     let accept = false;
     
-    if (delta > 0) {
-        accept = true; 
-    } else {
-        const probability = Math.exp(delta / Math.max(temperature, 0.0001));
-        if (Math.random() < probability) {
-            accept = true;
+    if (!isNaN(delta)) { // Protect against NaN propagation poisoning
+        if (delta > 0) {
+            accept = true; 
+        } else {
+            const probability = Math.exp(delta / Math.max(temperature, 0.0001));
+            if (Math.random() < probability) {
+                accept = true;
+            }
         }
     }
 
