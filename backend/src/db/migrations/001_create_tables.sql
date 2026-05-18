@@ -1,99 +1,91 @@
--- Create admins table (Unchanged)
-CREATE TABLE admins (
+-- Drop old redundant tables if they exist
+DROP TABLE IF EXISTS assignments CASCADE;
+DROP TABLE IF EXISTS timetable_runs CASCADE;
+DROP TABLE IF EXISTS run_configs CASCADE;
+DROP TABLE IF EXISTS student_course_registrations CASCADE;
+DROP TABLE IF EXISTS students CASCADE;
+DROP TABLE IF EXISTS courses CASCADE;
+DROP TABLE IF EXISTS rooms CASCADE;
+DROP TABLE IF EXISTS timeslots CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS admins CASCADE;
+
+-- 1. Unified Users Table (Replaces redundant admins/users tables)
+CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
+    role VARCHAR(20) DEFAULT 'admin',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create run_configs table (Unchanged - JSONB is perfect for our new UI payload)
+-- 2. Configuration & Runs
 CREATE TABLE run_configs (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50),
-    algorithm VARCHAR(50) NOT NULL, -- e.g., 'Genetic Algorithm', 'Simulated Annealing'
-    parameters JSONB NOT NULL,      -- Will store our exact UI JSON (Hard/Soft Constraints)
-    created_by INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES admins(id)
+    algorithm VARCHAR(50) NOT NULL, 
+    parameters JSONB NOT NULL,     
+    created_by INT REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create timetable_runs table (Unchanged)
 CREATE TABLE timetable_runs (
     id SERIAL PRIMARY KEY,
-    run_config_id INT NOT NULL,
+    run_config_id INT REFERENCES run_configs(id),
     status VARCHAR(20) NOT NULL,
     started_at TIMESTAMP,
     finished_at TIMESTAMP,
-    summary JSONB,
-    seed INT,
-    FOREIGN KEY (run_config_id) REFERENCES run_configs(id)
+    summary JSONB
 );
 
--- Create courses table (UPDATED for Exam System)
+-- 3. Core Entities
 CREATE TABLE courses (
     id SERIAL PRIMARY KEY,
-    code VARCHAR(20) UNIQUE NOT NULL,       -- e.g., 'SEN 401'
-    title VARCHAR(100) NOT NULL,            -- e.g., 'Software Engineering Project'
-    level VARCHAR(10) NOT NULL,             -- e.g., '400L' (Crucial for clash prevention)
-    num_students INT NOT NULL,              -- e.g., 45
-    lecturer VARCHAR(100) NOT NULL,         -- Chief Examiner
+    code VARCHAR(20) UNIQUE NOT NULL,       
+    title VARCHAR(100) NOT NULL,            
+    level VARCHAR(10) NOT NULL,             
+    num_students INT NOT NULL,              
+    lecturer VARCHAR(100) NOT NULL,         
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create rooms table (UPDATED for Exam System)
 CREATE TABLE rooms (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50) UNIQUE NOT NULL,       -- e.g., 'Hall A'
-    capacity INT NOT NULL,                  -- e.g., 250
-    availability VARCHAR(20) DEFAULT 'Available', -- 'Available' or 'Maintenance'
+    name VARCHAR(50) UNIQUE NOT NULL,       
+    capacity INT NOT NULL,                  
+    availability VARCHAR(20) DEFAULT 'Available',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create timeslots table (Unchanged)
 CREATE TABLE timeslots (
     id SERIAL PRIMARY KEY,
-    label VARCHAR(50) NOT NULL,             -- e.g., 'Morning', 'Afternoon'
+    label VARCHAR(50) NOT NULL,             
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP NOT NULL,
     date DATE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create assignments table (Unchanged)
+-- ==========================================
+-- NEW: Real Student Tracking
+-- ==========================================
+CREATE TABLE students (
+    id SERIAL PRIMARY KEY,
+    matric_no VARCHAR(20) UNIQUE NOT NULL,
+    level VARCHAR(10) NOT NULL
+);
+
+CREATE TABLE student_course_registrations (
+    student_id INT REFERENCES students(id) ON DELETE CASCADE,
+    course_id INT REFERENCES courses(id) ON DELETE CASCADE,
+    PRIMARY KEY (student_id, course_id)
+);
+
+-- 4. Output
 CREATE TABLE assignments (
     id SERIAL PRIMARY KEY,
-    run_id INT NOT NULL,
-    course_id INT NOT NULL,
-    timeslot_id INT NOT NULL,
-    room_id INT NOT NULL,
-    penalty_score FLOAT,                    -- To track soft constraint violations per assignment
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (run_id) REFERENCES timetable_runs(id),
-    FOREIGN KEY (course_id) REFERENCES courses(id),
-    FOREIGN KEY (timeslot_id) REFERENCES timeslots(id),
-    FOREIGN KEY (room_id) REFERENCES rooms(id)
+    run_id INT REFERENCES timetable_runs(id),
+    course_id INT REFERENCES courses(id),
+    timeslot_id INT REFERENCES timeslots(id),
+    room_id INT REFERENCES rooms(id)
 );
-
--- Create algorithm_metrics table (Unchanged)
-CREATE TABLE algorithm_metrics (
-    id SERIAL PRIMARY KEY,
-    run_id INT NOT NULL,
-    iteration INT NOT NULL,
-    best_fitness FLOAT NOT NULL,
-    avg_fitness FLOAT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(20) DEFAULT 'admin',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Insert a default admin account (Password is 'admin123')
--- Note: In a real production app, never hardcode passwords like this!
-INSERT INTO admins (username, password_hash)
-VALUES ('admin', '$2a$10$w.V/a4W15lB6A4bJ6/7Y/.hJ1q.N3.M.t.R/8eH.t.H.t.H.t.H.t.')
-ON CONFLICT (username) DO NOTHING;

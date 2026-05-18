@@ -1,22 +1,57 @@
 import { Request, Response } from "express";
-import { runGeneticAlgorithm } from "../services/geneticAlgorithm";
-import { runSimulatedAnnealing } from "../services/simulatedAnnealing";
-import { runHybridAlgorithm } from "../services/hybridAlgorithm";
-import { evaluateFitness } from "../services/fitness";
 import { query } from "../db/index";
-import { Timetable, TimetableConfig } from "../models/timetable";
+import { TimetableConfig, Course, ConflictMatrix } from "../models/timetable";
+import { timetableQueue } from "../queues/timetable.queue";
+
+// ==========================================
+// NEW: Database-Driven Conflict Matrix
+// ==========================================
+async function buildRealConflictMatrix(courses: Course[]): Promise<ConflictMatrix> {
+    const matrix: ConflictMatrix = {};
+    
+    // Initialize empty matrix
+    for (const course of courses) {
+        matrix[course.id] = {};
+    }
+
+    // SQL query to find exact student overlaps between courses
+    const overlapQuery = `
+        SELECT r1.course_id AS c1, r2.course_id AS c2, COUNT(*) AS overlap
+        FROM student_course_registrations r1
+        JOIN student_course_registrations r2 ON r1.student_id = r2.student_id
+        WHERE r1.course_id != r2.course_id
+        GROUP BY r1.course_id, r2.course_id;
+    `;
+
+    try {
+        const { rows } = await query(overlapQuery);
+
+        for (const row of rows) {
+            // Safety check to ensure the courses exist in our current fetch
+            if (matrix[row.c1] && matrix[row.c2]) {
+                matrix[row.c1][row.c2] = Number(row.overlap);
+            }
+        }
+    } catch (error) {
+        console.warn("⚠️ Could not fetch student registrations. Have you run the Phase 5 DB migration? Proceeding with zero-conflict matrix.");
+    }
+
+    return matrix;
+}
 
 export const generateTimetable = async (req: Request, res: Response) => {
   const { hard_constraints, soft_constraints, algorithm_tuning } = req.body;
 
   if (!hard_constraints || !soft_constraints || !algorithm_tuning) {
-    return res.status(400).json({ error: "Missing timetable configuration parameters." });
+    return res.status(400).json({ error: "Missing parameters." });
   }
 
   const config: TimetableConfig = { hard_constraints, soft_constraints, algorithm_tuning };
   const algorithm = algorithm_tuning.engine;
+  const adminId = 1; // Assuming default admin
 
   try {
+    // 1. Fetch raw data
     const coursesResult = await query(`SELECT id, code, title, level, num_students AS "numStudents", lecturer FROM courses`);
     const roomsResult = await query(`SELECT id, name, capacity, availability FROM rooms`);
     const timeslotsResult = await query(`SELECT id, label, date, start_time AS "startTime", end_time AS "endTime" FROM timeslots`);
@@ -26,97 +61,85 @@ export const generateTimetable = async (req: Request, res: Response) => {
     const timeslots = timeslotsResult.rows;
 
     if (courses.length === 0 || rooms.length === 0 || timeslots.length === 0) {
-      return res.status(400).json({ error: "Insufficient data in the database." });
+      return res.status(400).json({ error: "Insufficient database data." });
     }
 
-    let bestTimetable: Timetable;
-    const startTime = Date.now();
+    // 2. Build the Real Conflict Matrix
+    const conflictMatrix = await buildRealConflictMatrix(courses);
 
-    // 1. The Router
-    if (algorithm === "Simulated Annealing") {
-      bestTimetable = runSimulatedAnnealing(config, courses, rooms, timeslots);
-    } else if (algorithm === "Hybrid GA-SA") {
-      bestTimetable = runHybridAlgorithm(config, courses, rooms, timeslots);
-    } else {
-      bestTimetable = runGeneticAlgorithm(config, courses, rooms, timeslots);
-    }
-
-    const endTime = Date.now();
-    const executionTimeMs = endTime - startTime;
-    const fitnessPercentage = evaluateFitness(bestTimetable, courses, rooms, timeslots, config);
-
-    // 2. Hydration (Formatting the names and raw dates)
-    const courseStudentTracker = new Map<number, number>();
-
-    const hydratedTimetable = bestTimetable.assignments.map((assignment) => {
-      const course = courses.find((c) => c.id === assignment.courseId);
-      const room = rooms.find((r) => r.id === assignment.roomId);
-      const timeslot = timeslots.find((t) => t.id === assignment.timeslotId);
-
-      if (!courseStudentTracker.has(assignment.courseId)) {
-        courseStudentTracker.set(assignment.courseId, course.numStudents);
-      }
-
-      const remainingStudents = courseStudentTracker.get(assignment.courseId)!;
-      const allocatedStudents = Math.min(remainingStudents, room.capacity);
-      courseStudentTracker.set(assignment.courseId, remainingStudents - allocatedStudents);
-
-      return {
-        id: `${assignment.courseId}-${assignment.roomId}-${assignment.timeslotId}`, 
-        courseCode: course.code,
-        courseTitle: course.title,
-        level: course.level,
-        lecturer: course.lecturer,
-        numStudents: course.numStudents,
-        assignedStudents: allocatedStudents, // Actual student count in this room
-        roomName: room.name,
-        date: timeslot.date, // Raw date to prevent frontend sorting crashes!
-        timeslotLabel: timeslot.label,
-        timeString: `${new Date(timeslot.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} - ${new Date(timeslot.endTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-      };
+    // 3. Dispatch Job to BullMQ (Background Worker)
+    const job = await timetableQueue.add('generate', {
+        config,
+        courses,
+        rooms,
+        timeslots,
+        conflictMatrix,
+        adminId,
+        algorithm
     });
 
-    // 3. Database Logging
-    const adminId = 1; 
-    const configRes = await query(
-      `INSERT INTO run_configs (name, algorithm, parameters, created_by) VALUES ($1, $2, $3, $4) RETURNING id`,
-      [`Run - ${new Date().toLocaleString()}`, algorithm, JSON.stringify(config), adminId],
-    );
-    const runConfigId = configRes.rows[0].id;
-
-    const runRes = await query(
-      `INSERT INTO timetable_runs (run_config_id, status, started_at, finished_at, summary) VALUES ($1, $2, to_timestamp($3 / 1000.0), to_timestamp($4 / 1000.0), $5) RETURNING id`,
-      [runConfigId, "COMPLETED", startTime, endTime, JSON.stringify({ fitness: fitnessPercentage, executionTimeMs })],
-    );
-    const runId = runRes.rows[0].id;
-
-    for (const assignment of bestTimetable.assignments) {
-      await query(
-        `INSERT INTO assignments (run_id, course_id, timeslot_id, room_id) VALUES ($1, $2, $3, $4)`,
-        [runId, assignment.courseId, assignment.timeslotId, assignment.roomId],
-      );
-    }
-
-    // 4. Standardized Return Payload
-    res.json({
-      timetable: { assignments: hydratedTimetable }, // Perfectly matches React's expectations
-      timeslots: timeslots,         
-      fitness: fitnessPercentage,
-      timeTakenMs: executionTimeMs,
-      iterationsRun: algorithm_tuning.generations,
-      message: `${algorithm} completed successfully.`,
+    // 4. Immediately return the Job ID so the UI doesn't hang
+    res.status(202).json({
+      message: "Optimization started in the background.",
+      jobId: job.id 
     });
+
   } catch (error) {
-    console.error("Error generating timetable:", error);
+    console.error("Error queueing timetable:", error);
     res.status(500).json({ error: "Internal server error." });
   }
 };
 
+// ==========================================
+// NEW: Check Job Status (For UI Polling)
+// ==========================================
+export const getJobStatus = async (req: Request, res: Response) => {
+    try {
+        const { jobId } = req.params;
+        const job = await timetableQueue.getJob(jobId);
+
+        if (!job) {
+            return res.status(404).json({ error: "Job not found" });
+        }
+
+        const state = await job.getState();
+        const progress = job.progress;
+
+        if (state === 'completed') {
+            // Worker finished, return the final timetable payload
+            return res.json({
+                status: 'completed',
+                progress: 100,
+                result: job.returnvalue
+            });
+        }
+
+        if (state === 'failed') {
+            return res.status(500).json({
+                status: 'failed',
+                error: job.failedReason
+            });
+        }
+
+        // Job is still running (active, waiting, etc)
+        return res.json({
+            status: state, 
+            progress: progress || 0
+        });
+
+    } catch (error) {
+        console.error("Error fetching job status:", error);
+        res.status(500).json({ error: "Failed to check job status" });
+    }
+};
+
 export const resetSystem = async (req: Request, res: Response) => {
   try {
-    await query("TRUNCATE TABLE assignments, timetable_runs, run_configs, courses, rooms RESTART IDENTITY CASCADE");
+    // Included the new tables in the truncation list to be safe
+    await query("TRUNCATE TABLE assignments, timetable_runs, run_configs, student_course_registrations, students, courses, rooms, timeslots RESTART IDENTITY CASCADE");
     res.json({ message: "System completely reset." });
   } catch (error) {
+    console.error("Reset Error:", error);
     res.status(500).json({ error: "Failed to reset." });
   }
 };

@@ -1,17 +1,28 @@
-import { Timetable, Course, Room, Timeslot, TimetableConfig } from "../models/timetable";
+// backend/src/services/simulatedAnnealing.ts
+import { Timetable, Course, Room, Timeslot, TimetableConfig, ExamAssignment } from "../models/timetable";
 import { evaluateFitness } from "./fitness";
 import { generateRandomTimetable } from "./population";
+
+// Fast clone helper
+export function cloneTimetable(timetable: Timetable): Timetable {
+  const cloned: Record<number, ExamAssignment[]> = {};
+  for (const courseId in timetable.courseAssignments) {
+    cloned[courseId] = timetable.courseAssignments[courseId].map(a => ({ ...a }));
+  }
+  return { courseAssignments: cloned };
+}
 
 export function runSimulatedAnnealing(
   config: TimetableConfig,
   courses: Course[],
   rooms: Room[],
   timeslots: Timeslot[],
-  initialTimetable?: Timetable
+  initialTimetable?: Timetable,
+  conflictMatrix: ConflictMatrix,
+  customIterations?: number // Added for Memetic short-bursts
 ): Timetable {
   
-  const iterations = (config.algorithm_tuning?.generations || 1000) * 20;
-  
+  const iterations = customIterations || (config.algorithm_tuning?.generations || 1000) * 20;
   let initialTemperature = 2.0; 
   let coolingRate = 0.999; 
 
@@ -20,58 +31,55 @@ export function runSimulatedAnnealing(
       throw new Error("Insufficient data for SA.");
   }
 
-  let currentSolution = initialTimetable || generateRandomTimetable(courses, availableRooms, timeslots);
-  let currentFitness = evaluateFitness(currentSolution, courses, rooms, timeslots, config);
+  let currentSolution = initialTimetable ? cloneTimetable(initialTimetable) : generateRandomTimetable(courses, availableRooms, timeslots);
+  let currentFitness = evaluateFitness(currentSolution, courses, rooms, timeslots, config, conflictMatrix);
 
-  let bestSolution = JSON.parse(JSON.stringify(currentSolution));
+  let bestSolution = cloneTimetable(currentSolution);
   let bestFitness = currentFitness;
   let temperature = initialTemperature;
 
   for (let i = 0; i < iterations; i++) {
-    const neighborSolution = JSON.parse(JSON.stringify(currentSolution));
+    const neighborSolution = cloneTimetable(currentSolution);
+    const courseIds = Object.keys(neighborSolution.courseAssignments).map(Number);
     
-    if (neighborSolution.assignments.length === 0) break;
+    if (courseIds.length === 0) break;
 
     const numPerturbations = Math.floor(Math.random() * 3) + 1; 
 
     for (let p = 0; p < numPerturbations; p++) {
-        const mutationType = Math.random();
+        const randomCourseId = courseIds[Math.floor(Math.random() * courseIds.length)];
+        const courseSchedule = neighborSolution.courseAssignments[randomCourseId];
 
-        if (mutationType < 0.5) {
-            // Room change
-            const randomIdx = Math.floor(Math.random() * neighborSolution.assignments.length);
+        if (Math.random() < 0.5) {
+            // Room Mutator: Change the room of ONE segment, ensuring it doesn't break atomic bounds
+            const randomIdx = Math.floor(Math.random() * courseSchedule.length);
             const randomRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
-            neighborSolution.assignments[randomIdx].roomId = randomRoom.id;
+            courseSchedule[randomIdx].roomId = randomRoom.id;
         } else {
-            // Timeslot change
-            const randomCourseId = neighborSolution.assignments[Math.floor(Math.random() * neighborSolution.assignments.length)].courseId;
-            
-            // FIX 1: Timeslot selection moved strictly inside the perturbation loop
-            // Each modified course now gets its own independent random timeslot
+            // Timeslot Mutator: Move the ENTIRE course to a new timeslot
             const randomTimeslot = timeslots[Math.floor(Math.random() * timeslots.length)];
-            
-            for (let j = 0; j < neighborSolution.assignments.length; j++) {
-                if (neighborSolution.assignments[j].courseId === randomCourseId) {
-                    neighborSolution.assignments[j].timeslotId = randomTimeslot.id;
-                }
+            for (const segment of courseSchedule) {
+                segment.timeslotId = randomTimeslot.id;
             }
         }
     }
 
-    const neighborFitness = evaluateFitness(neighborSolution, courses, rooms, timeslots, config);
+    const neighborFitness = evaluateFitness(neighborSolution, courses, rooms, timeslots, config, conflictMatrix);
     const delta = neighborFitness - currentFitness;
 
-    // FIX 2: Clash Prevention Logic (The Safety Floor)
+    // ============================================================================
+    // CRITICAL FIX: Standard Metropolis-Hastings Criterion
+    // Removed the arbitrary "50" floor. The probability of accepting a worse 
+    // solution is now purely a function of the temperature and how bad the move is.
+    // ============================================================================
     let accept = false;
     
     if (delta > 0) {
-        // Always accept if the schedule is improving
-        accept = true; 
-    } else if (neighborFitness >= 50) {
-        // SA won't accept backward moves if the fitness is below 50 (indicating severe hard clashes)
-        // It will only explore worse options if the schedule is already relatively stable
-        if (Math.random() < Math.exp(Math.max(-50, delta / Math.max(temperature, 0.01)))) {
-            accept = true;
+        accept = true; // Always accept improvements
+    } else {
+        const probability = Math.exp(delta / Math.max(temperature, 0.0001));
+        if (Math.random() < probability) {
+            accept = true; // Accept worse solution to escape local optima
         }
     }
 
@@ -80,7 +88,7 @@ export function runSimulatedAnnealing(
       currentFitness = neighborFitness;
 
       if (currentFitness > bestFitness) {
-        bestSolution = JSON.parse(JSON.stringify(currentSolution));
+        bestSolution = cloneTimetable(currentSolution);
         bestFitness = currentFitness;
       }
     }
