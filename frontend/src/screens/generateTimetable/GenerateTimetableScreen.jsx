@@ -5,17 +5,16 @@ import { MdSettings, MdPlayArrow, MdStop, MdCheckCircle } from "react-icons/md";
 
 const GenerateTimetableScreen = () => {
   const navigate = useNavigate();
-  // Using short codes: "GA", "SA", "HYBRID"
   const [algorithm, setAlgorithm] = useState("GA");
 
-  // Simulation States
+  // Simulation & State
   const [isRunning, setIsRunning] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
   const [progress, setProgress] = useState(0);
   const [metrics, setMetrics] = useState({
     iteration: 0,
     fitness: 0,
-    clashes: 124,
+    clashes: 0,
   });
   const [logs, setLogs] = useState([
     { type: "info", text: "System Ready. Awaiting engine start..." },
@@ -30,44 +29,30 @@ const GenerateTimetableScreen = () => {
     }
   }, [logs]);
 
-  // FAKE BACKEND SIMULATION (Runs visually while waiting for server)
+  // VISUAL LOG SIMULATION (Keeps UI looking active while waiting for Redis/BullMQ)
   useEffect(() => {
     let interval;
-    if (isRunning && progress < 100) {
+    if (isRunning && !isCompleted) {
       interval = setInterval(() => {
-        setProgress((prev) => {
-          const next = prev + Math.random() * 5;
-          if (next >= 100) return 100;
-          return next;
-        });
-
         setMetrics((prev) => ({
+          ...prev,
           iteration: prev.iteration + Math.floor(Math.random() * 50),
-          fitness: Math.min(100, prev.fitness + Math.random() * 2),
           clashes: Math.max(0, prev.clashes - Math.floor(Math.random() * 3)),
         }));
 
         const newLog = generateMockLog(algorithm);
         setLogs((prev) => [...prev, newLog]);
-      }, 600); // Speed of the simulation
-    } else if (progress >= 100 && isRunning) {
-      setIsRunning(false);
-      setIsCompleted(true);
-      setMetrics((prev) => ({ ...prev, fitness: 100, clashes: 0 }));
-      setLogs((prev) => [
-        ...prev,
-        { type: "success", text: "Optimal Timetable Generated Successfully!" },
-      ]);
+      }, 800);
     }
     return () => clearInterval(interval);
-  }, [isRunning, progress, algorithm]);
+  }, [isRunning, isCompleted, algorithm]);
 
   const generateMockLog = (algo) => {
     const time = new Date().toLocaleTimeString();
     const gaPhrases = [
       "Applying Crossover to Population...",
       "Evaluating Fitness Function...",
-      "Mutation Triggered on Chromosome 42...",
+      "Mutation Triggered on Chromosome...",
       "Selecting Elites...",
     ];
     const saPhrases = [
@@ -86,10 +71,9 @@ const GenerateTimetableScreen = () => {
     localStorage.removeItem("generated_timetable");
     localStorage.removeItem("timetable_timeslots");
 
-    // Map the shortcode to the string expected by the backend
     let engineName = "Genetic Algorithm";
     if (algorithm === "SA") engineName = "Simulated Annealing";
-    if (algorithm === "HYBRID") engineName = "Hybrid Algorithm";
+    if (algorithm === "HYBRID") engineName = "Hybrid GA-SA";
 
     setLogs([
       {
@@ -98,22 +82,20 @@ const GenerateTimetableScreen = () => {
         text: `Initializing ${engineName} Engine...`,
       },
     ]);
+
     setProgress(0);
-    setMetrics({ iteration: 0, fitness: 12.5, clashes: 156 });
+    setMetrics({ iteration: 0, fitness: 0, clashes: 156 });
     setIsCompleted(false);
     setIsRunning(true);
 
     try {
-      // 1. GET THE DYNAMIC CONSTRAINTS FROM LOCAL STORAGE
       const savedConfigString = localStorage.getItem("timetable_constraints");
-
       let payload;
+
       if (savedConfigString) {
         payload = JSON.parse(savedConfigString);
-        // Override the engine with whatever they selected on THIS screen
         payload.algorithm_tuning.engine = engineName;
       } else {
-        // Fallback default payload if they never visited the Constraints screen
         payload = {
           hard_constraints: {
             studentClash: true,
@@ -133,10 +115,9 @@ const GenerateTimetableScreen = () => {
         };
       }
 
-      // Add VIP Auth Token
       const token = localStorage.getItem("token");
 
-      // 2. MAKE THE ACTUAL API CALL
+      // 1. START THE BACKGROUND JOB
       const response = await fetch(
         "http://localhost:3000/api/timetable/generate",
         {
@@ -149,52 +130,108 @@ const GenerateTimetableScreen = () => {
         },
       );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate timetable.");
-      }
-
       const data = await response.json();
 
-      // 3. UPDATE UI WITH REAL BACKEND METRICS
-      setProgress(100);
-      setIsRunning(false);
-      setIsCompleted(true);
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to start generation.");
+      }
 
-      // Defensively parse fitness to prevent NaN UI bugs
-      const rawFitness =
-        data.fitness ?? data.timetable?.fitnessScore ?? data.fitnessScore ?? 0;
-      const finalFitnessScore = isNaN(Number(rawFitness))
-        ? 0
-        : Number(rawFitness);
-
-      setMetrics({
-        iteration: data.iterationsRun || payload.algorithm_tuning.generations,
-        fitness: finalFitnessScore,
-        clashes: finalFitnessScore === 100 ? 0 : data.clashes || 1,
-      });
-
+      const jobId = data.jobId;
       setLogs((prev) => [
         ...prev,
         {
           type: "info",
           time: new Date().toLocaleTimeString(),
-          text: `Execution time: ${data.timeTakenMs}ms`,
-        },
-        {
-          type: "success",
-          time: new Date().toLocaleTimeString(),
-          text: data.message || "Optimal Timetable Generated Successfully!",
+          text: `Background Worker Job assigned (ID: ${jobId}). Polling queue...`,
         },
       ]);
 
-      console.log("Real Timetable Data from Server:", data.timetable);
+      // 2. POLL THE BULLMQ STATUS ENDPOINT
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await fetch(
+            `http://localhost:3000/api/timetable/status/${jobId}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          const statusData = await statusRes.json();
 
-      // Store the generated timetable globally so the View screen can display it!
-      localStorage.setItem(
-        "generated_timetable",
-        JSON.stringify(data.timetable),
-      );
+          if (!statusRes.ok)
+            throw new Error(statusData.error || "Status check failed");
+
+          // Update real progress from the background worker
+          setProgress(statusData.progress || 0);
+
+          if (statusData.status === "completed") {
+            clearInterval(pollInterval);
+            setIsRunning(false);
+            setIsCompleted(true);
+            setProgress(100);
+
+            const result = statusData.result; // Real payload from BullMQ
+            const finalFitnessScore = isNaN(Number(result.fitness))
+              ? 0
+              : Number(result.fitness);
+
+            setMetrics({
+              iteration: payload.algorithm_tuning.generations,
+              fitness: finalFitnessScore,
+              // A simple heuristic: every 5% drop in fitness roughly correlates to 1 unoptimized constraint
+              clashes:
+                finalFitnessScore === 100
+                  ? 0
+                  : Math.floor((100 - finalFitnessScore) / 5),
+            });
+
+            setLogs((prev) => [
+              ...prev,
+              {
+                type: "info",
+                time: new Date().toLocaleTimeString(),
+                text: `Worker completed in ${result.timeTakenMs}ms`,
+              },
+              {
+                type: "success",
+                time: new Date().toLocaleTimeString(),
+                text: "Optimal Timetable Generated Successfully!",
+              },
+            ]);
+
+            // Save actual completed data to LocalStorage
+            localStorage.setItem(
+              "generated_timetable",
+              JSON.stringify(result.timetable),
+            );
+            localStorage.setItem(
+              "timetable_timeslots",
+              JSON.stringify(result.timeslots),
+            );
+          } else if (statusData.status === "failed") {
+            clearInterval(pollInterval);
+            setIsRunning(false);
+            setLogs((prev) => [
+              ...prev,
+              {
+                type: "error",
+                time: new Date().toLocaleTimeString(),
+                text: `Worker Failed: ${statusData.error}`,
+              },
+            ]);
+          }
+        } catch (pollErr) {
+          clearInterval(pollInterval);
+          setIsRunning(false);
+          setLogs((prev) => [
+            ...prev,
+            {
+              type: "error",
+              time: new Date().toLocaleTimeString(),
+              text: `Polling Error: ${pollErr.message}`,
+            },
+          ]);
+        }
+      }, 1000); // Check status every 1 second
     } catch (error) {
       setIsRunning(false);
       setLogs((prev) => [
@@ -205,7 +242,6 @@ const GenerateTimetableScreen = () => {
           text: `Server Error: ${error.message}`,
         },
       ]);
-      console.error(error);
     }
   };
 
@@ -216,7 +252,7 @@ const GenerateTimetableScreen = () => {
       {
         type: "warning",
         time: new Date().toLocaleTimeString(),
-        text: "Process Terminated by User.",
+        text: "Process Tracking Terminated (Note: Job may still be running on server).",
       },
     ]);
   };
@@ -229,7 +265,6 @@ const GenerateTimetableScreen = () => {
       </div>
 
       <div className="engine-grid">
-        {/* LEFT COLUMN: Configuration */}
         <div className="config-panel">
           <h3 className="panel-title">
             <MdSettings /> Algorithm Setup
@@ -242,7 +277,6 @@ const GenerateTimetableScreen = () => {
               onChange={(e) => setAlgorithm(e.target.value)}
               disabled={isRunning}
             >
-              {/* FIXED: Values now match the short codes */}
               <option value="GA">Genetic Algorithm (GA)</option>
               <option value="SA">Simulated Annealing (SA)</option>
               <option value="HYBRID">Hybrid Model (GA + SA)</option>
@@ -302,7 +336,6 @@ const GenerateTimetableScreen = () => {
           )}
         </div>
 
-        {/* RIGHT COLUMN: Execution & Output */}
         <div className="execution-panel">
           <div className="metrics-grid">
             <div className="metric-card">
@@ -328,7 +361,7 @@ const GenerateTimetableScreen = () => {
 
           <div className="progress-section">
             <div className="progress-header">
-              <span>Overall Progress</span>
+              <span>Worker Progress</span>
               <span>{Math.floor(progress)}%</span>
             </div>
             <div className="progress-track">
@@ -339,7 +372,6 @@ const GenerateTimetableScreen = () => {
             </div>
           </div>
 
-          {/* Terminal / Console output */}
           <div className="terminal-window scrollbar" ref={terminalRef}>
             {logs.map((log, index) => (
               <div key={index} className={`log-line ${log.type}`}>

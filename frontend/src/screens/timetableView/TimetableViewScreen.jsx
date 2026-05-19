@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { BlockTitle, BlockContentWrap } from "../../styles/global/default";
-import { MdPrint, MdDownload, MdPictureAsPdf } from "react-icons/md";
+import { MdPrint, MdDownload, MdPictureAsPdf, MdAccessTime } from "react-icons/md";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const TimetableViewScreen = () => {
   const [scheduleData, setScheduleData] = useState(null);
+  const [generatedAt, setGeneratedAt] = useState("");
 
   useEffect(() => {
     const loadTimetable = () => {
@@ -14,6 +15,29 @@ const TimetableViewScreen = () => {
 
       try {
         const parsedData = JSON.parse(savedTimetableString);
+
+        // --- NEW: Safe Timestamp Logic ---
+        let genTime = new Date();
+        if (!Array.isArray(parsedData)) {
+          // If the backend didn't provide a timestamp, create one and lock it into local storage
+          if (!parsedData.generatedAt) {
+            parsedData.generatedAt = new Date().toISOString();
+            localStorage.setItem("generated_timetable", JSON.stringify(parsedData));
+          }
+          genTime = new Date(parsedData.generatedAt);
+        }
+
+        setGeneratedAt(
+          genTime.toLocaleString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          }).toUpperCase()
+        );
+        // ---------------------------------
 
         let flatTimetable = [];
         if (Array.isArray(parsedData)) {
@@ -44,7 +68,7 @@ const TimetableViewScreen = () => {
 
     loadTimetable();
 
-        const handleVisibilityChange = () => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         loadTimetable();
       }
@@ -107,10 +131,15 @@ const TimetableViewScreen = () => {
     doc.text("Automated Examination Timetable", 14, 28);
     doc.setFontSize(10);
     doc.text("Supervised by: Dr. A.A. Waheed", 14, 34);
-    doc.setLineWidth(0.5);
-    doc.line(14, 38, 196, 38); 
+    
+    // --- NEW: Appended Timestamp to PDF ---
+    doc.setTextColor(148, 163, 184); 
+    doc.text(`Version Generated: ${generatedAt}`, 14, 40);
 
-    let startY = 45;
+    doc.setLineWidth(0.5);
+    doc.line(14, 44, 196, 44); 
+
+    let startY = 52;
 
     Object.keys(scheduleData).sort((a, b) => new Date(a) - new Date(b)).forEach(date => {
       let prettyDate = date;
@@ -167,7 +196,16 @@ const TimetableViewScreen = () => {
   return (
     <div style={{ padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-        <h2 style={{ color: '#fff', margin: 0 }}>Final Examination Schedule</h2>
+        
+        {/* NEW: Timestamp added to the UI Header */}
+        <div>
+          <h2 style={{ color: '#fff', margin: 0, marginBottom: '6px' }}>Final Examination Schedule</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '14px' }}>
+            <MdAccessTime size={16} />
+            <span>Version Generated: <strong style={{ color: '#f8fafc' }}>{generatedAt}</strong></span>
+          </div>
+        </div>
+
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', backgroundColor: '#334155', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
             <MdPrint size={18} /> Print
